@@ -105,7 +105,7 @@ void highlight_keywords(std::string& text, std::string_view const (&keywords)[N]
     /// Surround the positions with `\MDKeyword{}`.
     for (auto& m : rgs::reverse_view(matches)) {
         /// Ignore matches not followed by whitespace, an operator, or the end of the string.
-        static constexpr std::string_view allowed = " \t\r\n+-*/%&|^~!=<>?:;.,()[]{}'\"";
+        static constexpr std::string_view allowed = " \t\r\n+-*/%&|^~!=<>?:;.,()[]{}'\"\\";
         if (m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
 
         text.insert(m.pos + m.len, "}");
