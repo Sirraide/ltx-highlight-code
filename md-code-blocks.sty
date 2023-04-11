@@ -86,16 +86,14 @@
     \@MD@obeybraces
     \parindent\z@\relax
     \parskip\MDCodeBlockLineSkipAmount\relax
-    \ttfamily
     \let`\@MD@backquote
 }
 
+%% Box that wraps the code block to prevent it from being broken across pages.
+\long\def\@MD@box#1{\if@MD@allow@break#1\else\vbox{#1}\fi}
+
 %% Triple ``` starts a code block.
 \long\def\@MD@triplebackquote`[#1]#2```{%
-    \if@MD@allow@break\else
-        \vbox{
-    \fi
-
     %% Apply highlighting if we’re supposed to.
     \if@MD@highlight
         %% Write data to a file so we can run a command on it to apply syntax highlighting.
@@ -104,11 +102,7 @@
         \immediate\write18{\MDHighlightEXE\space #1 \MDTempFileName\space > \MDTempFileName.1}%
     %% Otherwise, just use the code.
     \else
-        #2%
-    \fi
-
-    \if@MD@allow@break\else
-        }
+        \@MD@box{#2}%
     \fi
 
     %% Close the group.
@@ -120,15 +114,14 @@
         \begingroup
             \ttfamily
             \parindent\z@\relax
-            \parskip\MDCodeBlockLineSkipAmount\relax
             \@MD@obeylines
             \@MD@obeybraces
-            \input{\MDTempFileName.1}%
+            \@MD@box{\input{\MDTempFileName.1}}%
         \endgroup
     \fi
 
     %% Close the environment.
-    \ifvmode\else\par\fi
+    \ifvmode\else\unskip\par\fi
     \MDCodeBlockSkip
     \everypar{\setbox\z@\lastbox\everypar{}}%
     \@MD@allow@breakfalse
