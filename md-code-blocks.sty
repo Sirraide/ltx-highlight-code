@@ -24,6 +24,10 @@
 %% Name of the executable to use for syntax highlighting.
 \def\MDHighlightEXE{ltx-highlight-code}
 
+%% Switch to allow page breaks in code blocks.
+\def\MDAllowBreak{\@MD@allow@breaktrue}
+\newif\if@MD@allow@break \@MD@allow@breakfalse
+
 %% Temporary output file.
 \newwrite\@MD@tmpout
 
@@ -88,6 +92,10 @@
 
 %% Triple ``` starts a code block.
 \long\def\@MD@triplebackquote`[#1]#2```{%
+    \if@MD@allow@break\else
+        \vbox{
+    \fi
+
     %% Apply highlighting if we’re supposed to.
     \if@MD@highlight
         %% Write data to a file so we can run a command on it to apply syntax highlighting.
@@ -97,6 +105,10 @@
     %% Otherwise, just use the code.
     \else
         #2%
+    \fi
+
+    \if@MD@allow@break\else
+        }
     \fi
 
     %% Close the group.
@@ -119,4 +131,5 @@
     \ifvmode\else\par\fi
     \MDCodeBlockSkip
     \everypar{\setbox\z@\lastbox\everypar{}}%
+    \@MD@allow@breakfalse
 }
