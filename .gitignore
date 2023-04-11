@@ -1,0 +1,12 @@
+## IDE and editor files.
+.idea/
+.vscode/
+.cache/
+
+## Build files.
+out/
+ltx-highlight-code
+ltx-highlight-code.exe
+
+## Valgrind.
+callgrind.out.*

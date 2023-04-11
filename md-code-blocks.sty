@@ -1,0 +1,122 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{md-code-blocks}[2023/04/11 Package that provides Markdown code blocks and syntax highlighting]
+\RequirePackage{xcolor}
+\RequirePackage{color}
+
+%% Allow disabling syntax highlighting.
+\newif\if@MD@highlight \@MD@highlighttrue
+\DeclareOption{nohighlighting}{\@MD@highlightfalse}
+
+\ProcessOptions\relax
+
+%% Colours.
+\definecolor{MDKeywordColor}{HTML}{0000FF}
+
+%% Colour macros.
+\def\MDKeyword#1{\textcolor{MDKeywordColor}{#1}}
+
+%% Skip to use before and after code blocks. Can be redefined by the user.
+\let\MDCodeBlockSkip\medskip
+
+%% Skip to use between paragraphs in code blocks (this is what `\parskip` is set to).
+\let\MDCodeBlockLineSkipAmount\smallskipamount
+
+%% Name of the temporary output file.
+\def\MDTempFileName{temporary.tex}
+
+%% Temporary output file.
+\newwrite\@MD@tmpout
+
+%% Write to tempfile.
+\long\def\@MD@tmpwrite#1{%
+    \immediate\openout\@MD@tmpout=\MDTempFileName%
+    \immediate\write\@MD@tmpout{#1}%
+    \immediate\closeout\@MD@tmpout
+}
+
+%% Define this now because we won’t be able do use \char` later.
+\let\@MD@backquote`
+\let\MDTextBackquote\@MD@backquote
+
+%% Save these just in case.
+\let\@MD@obeyspaces\@vobeyspaces
+\let\@MD@obeylines\obeylines
+
+%% Treat {} literally.
+\def\@MD@obeybraces{
+    \catcode`{=12
+    \catcode`}=12
+}
+
+%% Make ` active.
+\catcode``=\active
+
+%% `   starts tt mode
+%% ``  does nothing
+%% ``` starts code block
+\def`{\@ifnextchar`\@MD@doublebackquote\@MD@singlebackquote}
+
+%% Single ` starts tt mode to be closed by next `.
+\def\@MD@singlebackquote{\begingroup\ttfamily\let`\endgroup}
+
+%% Double `` starts code block if followed by another `, else does nothing.
+%% We still need to consume the second `, so expand a \@gobble first.
+\def\@MD@doublebackquote{
+    \expandafter\@ifnextchar
+    \expandafter`%
+    \expandafter{%
+    \expandafter\@MD@triplebackquote@start
+    \expandafter\@MD@triplebackquote
+    \expandafter}%
+    \expandafter\relax
+    \@gobble
+}
+
+\def\@MD@triplebackquote@start{%
+	\ifvmode\else\unskip\par\fi
+	\MDCodeBlockSkip
+	\begingroup
+    \ttfamily
+    \@MD@obeyspaces
+    \@MD@obeylines
+    \@MD@obeybraces
+    \parindent\z@\relax
+    \parskip\MDCodeBlockLineSkipAmount\relax
+    \ttfamily
+    \let`\@MD@backquote
+}
+
+%% Triple ``` starts a code block.
+\long\def\@MD@triplebackquote`[#1]#2```{%
+    %% Apply highlighting if we’re supposed to.
+    \if@MD@highlight
+        %% Write data to a file so we can run a command on it to apply syntax highlighting.
+        \@MD@tmpwrite{\noexpand\makeatletter #2 \noexpand\makeatother}%
+        %% Apply syntax highlighting to the code in \jobname.tmp
+        \immediate\write18{ltx-highlight-code #1 temporary.tex}%
+    %% Otherwise, just use the code.
+    \else
+        #2%
+    \fi
+
+    %% Close the group.
+    \endgroup
+
+    %% Include the formatted code. We need to apply almost the same formatting to it
+    %% that we used when the code was parsed.
+    \if@MD@highlight
+        \begingroup
+            \ttfamily
+            \parindent\z@\relax
+            \parskip\MDCodeBlockLineSkipAmount\relax
+            \@MD@obeylines
+            \@MD@obeybraces
+            \input{\MDTempFileName}%
+        \endgroup
+    \fi
+
+    %% Close the environment.
+    \ifvmode\else\par\fi
+    \MDCodeBlockSkip
+    \everypar{\setbox\z@\lastbox\everypar{}}%
+}
