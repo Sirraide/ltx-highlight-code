@@ -15,6 +15,7 @@ using options = clopts< // clang-format off
 enum struct kind {
     operator_,
     keyword,
+    type,
     ignore,
 };
 
@@ -140,6 +141,8 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
     trie tr;
     for (auto keyword : keywords) tr.insert(keyword, kind::keyword);
     for (usz i = 0; i < operators.size(); ++i) tr.insert(operators.substr(i, 1), kind::operator_);
+    tr.insert("::", kind::operator_);
+    tr.insert("T", kind::type);
     /*for (auto seq : ignore_sequences) tr.insert(seq, kind::ignore);*/
     tr.finalise();
 
@@ -156,6 +159,7 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
     /// Macro call to insert for keywords/operators.
     auto kwstr = colour_string_prefix(langname, "Keyword");
     auto opstr = colour_string_prefix(langname, "Operator");
+    auto tystr = colour_string_prefix(langname, "Type");
 
     /// Surround the positions with `\MDKeyword{}`.
     for (auto& m : rgs::reverse_view(matches)) {
@@ -168,6 +172,7 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
         switch (m.k) {
             case kind::operator_: text.insert(m.pos, opstr); break;
             case kind::keyword: text.insert(m.pos, kwstr); break;
+            case kind::type: text.insert(m.pos, tystr); break;
             default: std::unreachable();
         }
     }
