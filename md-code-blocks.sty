@@ -98,6 +98,7 @@
     \@gobble
 }
 
+%% This macro is expanded before the code block is parsed.
 \def\@MD@triplebackquote@start{%
 	\ifvmode\else\unskip\par\fi
 	\vspace\MDCodeBlockSkipAmount
@@ -117,7 +118,8 @@
     \if@MD@allow@break#1\else\vbox{#1}\fi
 }
 
-%% Triple ``` starts a code block.
+%% Triple ``` starts a code block. This macro is expanded after the code block
+%% has been parsed.
 \long\def\@MD@triplebackquote`[#1]#2```{%
     %% Apply highlighting if we’re supposed to.
     \if@MD@highlight
