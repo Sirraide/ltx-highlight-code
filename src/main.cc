@@ -1,14 +1,22 @@
 #include <clopts.hh>
 #include <queue>
 #include <ranges>
+#include <utility>
 #include <utils.hh>
 
 using namespace command_line_options;
 using options = clopts< // clang-format off
     positional<"language", "The programming language to highlight">,
     positional<"input", "The input file to highlight", file<std::string>>,
+    flag<"--debug", "Debug output">,
     help<>
 >; // clang-format on
+
+enum struct kind {
+    operator_,
+    keyword,
+    ignore,
+};
 
 /// Trie for Aho-Corasick string matching.
 struct trie {
@@ -17,11 +25,13 @@ struct trie {
         bool is_word = false;
         node* fail = nullptr;
         usz depth = 0;
+        kind k{};
     };
 
     struct match_result {
         usz pos{};
         usz len{};
+        kind k{};
     };
 
     node root;
@@ -59,10 +69,11 @@ struct trie {
     }
 
     /// Insert a string into the trie.
-    void insert(std::string_view str) {
+    void insert(std::string_view str, kind k) {
         node* current = &root;
         for (char c : str) current = &current->children[c];
         current->is_word = true;
+        current->k = k;
     }
 
     /// Match a string against the trie. Keep only
@@ -71,22 +82,42 @@ struct trie {
         std::vector<match_result> matches;
         node* current = &root;
         usz last_match_end = std::string::npos;
+        kind last_kind{};
+
+        /// Check if the current node has a child matching `c`, and if so
+        /// set the end of the last match to the current position if the
+        /// child is the end of a word.
+        auto match = [&](usz i, char c) {
+            if (not current->children.contains(c)) return false;
+            current = &current->children[c];
+            if (current->is_word) {
+                last_match_end = i;
+                last_kind = current->k;
+            }
+            return true;
+        };
 
         for (usz i = 0; i < str.size(); ++i) {
             char c = str[i];
-            if (current->children.contains(c)) {
-                current = &current->children[c];
-                if (current->is_word) last_match_end = i;
-            } else {
+            if (not match(i, c)) {
+                /// If we have a current word append it.
                 if (last_match_end != std::string::npos) {
-                    matches.push_back({last_match_end - current->depth + 1, current->depth});
+                    matches.push_back({last_match_end - current->depth + 1, current->depth, last_kind});
                     last_match_end = std::string::npos;
+                    current = current->fail;
+                    --i;
                 }
-                current = current->fail;
+
+                /// Otherwise, check to see if the current character
+                /// is a single-letter word.
+                else {
+                    current = current->fail;
+                    match(i, c);
+                }
             }
         }
 
-        if (last_match_end != std::string::npos) matches.push_back({last_match_end - current->depth + 1, current->depth});
+        if (last_match_end != std::string::npos) matches.push_back({last_match_end - current->depth + 1, current->depth, last_kind});
         return matches;
     }
 };
@@ -98,25 +129,47 @@ std::string colour_string_prefix(std::string_view langname, std::string_view col
 /// Highlight keywords in a string.
 template <std::size_t N>
 void highlight_keywords(std::string& text, std::string_view langname, std::string_view const (&keywords)[N]) {
+    static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
+    /*
+        /// These sequences should be ignored.
+        static constexpr std::string_view ignore_sequences[] {
+            "^^M",
+        };*/
+
     /// Build trie.
     trie tr;
-    for (auto keyword : keywords) tr.insert(keyword);
+    for (auto keyword : keywords) tr.insert(keyword, kind::keyword);
+    for (usz i = 0; i < operators.size(); ++i) tr.insert(operators.substr(i, 1), kind::operator_);
+    /*for (auto seq : ignore_sequences) tr.insert(seq, kind::ignore);*/
     tr.finalise();
 
     /// Match keywords.
     auto matches = tr.match(text);
+    if (options::get<"--debug">()) {
+        for (auto& m : matches) {
+            std::string_view k = m.k == kind::keyword ? "keyword" : "operator";
+            fmt::print("{}: \"{}\" ({} chars)\n", k, text.substr(m.pos, m.len), m.len);
+        }
+        std::exit(0);
+    }
 
-    /// Macro call to insert for keywords.
+    /// Macro call to insert for keywords/operators.
     auto kwstr = colour_string_prefix(langname, "Keyword");
+    auto opstr = colour_string_prefix(langname, "Operator");
 
     /// Surround the positions with `\MDKeyword{}`.
     for (auto& m : rgs::reverse_view(matches)) {
         /// Ignore matches not followed by whitespace, an operator, or the end of the string.
         static constexpr std::string_view allowed = " \t\r\n+-*/%&|^~!=<>?:;.,()[]{}'\"\\";
-        if (m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
+        if (m.k == kind::ignore) continue;
+        if (m.k != kind::operator_ and m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
 
-        text.insert(m.pos + m.len, "\\@MD@");
-        text.insert(m.pos, kwstr);
+        text.insert(m.pos + m.len, "\\@MD@ ");
+        switch (m.k) {
+            case kind::operator_: text.insert(m.pos, opstr); break;
+            case kind::keyword: text.insert(m.pos, kwstr); break;
+            default: std::unreachable();
+        }
     }
 }
 
