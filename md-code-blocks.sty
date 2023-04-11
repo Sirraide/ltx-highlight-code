@@ -13,10 +13,13 @@
 \def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
 
 %% Skip to use before and after code blocks. Can be redefined by the user.
-\let\MDCodeBlockSkip\medskip
+\let\MDCodeBlockSkipAmount\medskipamount
 
-%% Skip to use between paragraphs in code blocks (this is what `\parskip` is set to).
+%% Skip to use for \parskip in code blocks.
 \let\MDCodeBlockLineSkipAmount\smallskipamount
+
+%% Skip to use for empty lines in code blocks.
+\let\MDEmptyLineSkipAmount\baselineskip
 
 %% Name of the temporary output file.
 \def\MDTempFileName{temporary.tex}
@@ -42,9 +45,28 @@
 \let\@MD@backquote`
 \let\MDTextBackquote\@MD@backquote
 
-%% Save these just in case.
+%% Save this just in case.
 \let\@MD@obeyspaces\@vobeyspaces
-\let\@MD@obeylines\obeylines
+
+%% Remove first skip before next paragraph.
+\def\@MD@nextparunskip{\everypar{\setbox\z@\lastbox\everypar{}}}
+
+%% This definition is used when emitting a code block to a file.
+\protected\def\@MD@Brk{\relax}
+
+%% Actual definition of \@MD@Brk. This is basically just \par, but adjusted
+%% so that we actually insert empty lines if there are multiple consecutive
+%% line breaks.
+\def\@MD@Typeset@Brk{\@ifnextchar \@MD@Brk {\vspace\MDEmptyLineSkipAmount}\par}
+
+%% Make line breaks active.
+\def\@MD@restorelines{\catcode`\^^M=5}
+{
+    \catcode`\^^M=\active %
+    \gdef\@MD@obeylines{\catcode`\^^M\active \def^^M{%
+        \@MD@Brk%
+    }}%
+}
 
 %% Treat {} literally.
 \def\@MD@obeybraces{
@@ -78,7 +100,7 @@
 
 \def\@MD@triplebackquote@start{%
 	\ifvmode\else\unskip\par\fi
-	\MDCodeBlockSkip
+	\vspace\MDCodeBlockSkipAmount
 	\begingroup
     \ttfamily
     \@MD@obeyspaces
@@ -90,7 +112,10 @@
 }
 
 %% Box that wraps the code block to prevent it from being broken across pages.
-\long\def\@MD@box#1{\if@MD@allow@break#1\else\vbox{#1}\fi}
+\long\def\@MD@box#1{%
+    \let\@MD@Brk\@MD@Typeset@Brk
+    \if@MD@allow@break#1\else\vbox{#1}\fi
+}
 
 %% Triple ``` starts a code block.
 \long\def\@MD@triplebackquote`[#1]#2```{%
@@ -122,7 +147,8 @@
 
     %% Close the environment.
     \ifvmode\else\unskip\par\fi
-    \MDCodeBlockSkip
-    \everypar{\setbox\z@\lastbox\everypar{}}%
+    \vspace\MDCodeBlockSkipAmount
+    \@MD@nextparunskip
     \@MD@allow@breakfalse
+    \@MD@restorelines
 }
