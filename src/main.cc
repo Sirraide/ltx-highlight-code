@@ -108,8 +108,8 @@ void highlight_keywords(std::string& text, std::string_view const (&keywords)[N]
         static constexpr std::string_view allowed = " \t\r\n+-*/%&|^~!=<>?:;.,()[]{}'\"\\";
         if (m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
 
-        text.insert(m.pos + m.len, "}");
-        text.insert(m.pos, "\\MDKeyword{");
+        text.insert(m.pos + m.len, "\\@MD@");
+        text.insert(m.pos, "\\@MD@Keyword ");
     }
 }
 
@@ -249,6 +249,30 @@ void highlight_go(std::string& text) {
         "import",
         "return",
         "var",
+        "bool",
+        "byte",
+        "complex64",
+        "complex128",
+        "error",
+        "float32",
+        "float64",
+        "int",
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "rune",
+        "string",
+        "uint",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "uintptr",
+        "true",
+        "false",
+        "iota",
+        "nil",
     };
 
     highlight_keywords(text, keywords);
