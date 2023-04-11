@@ -96,7 +96,7 @@
         %% Write data to a file so we can run a command on it to apply syntax highlighting.
         \@MD@tmpwrite{\noexpand\makeatletter #2 \noexpand\makeatother}%
         %% Apply syntax highlighting to the code in \jobname.tmp
-        \immediate\write18{\MDHighlightEXE{} #1 temporary.tex}%
+        \immediate\write18{\MDHighlightEXE\ #1 temporary.tex}%
     %% Otherwise, just use the code.
     \else
         #2%
