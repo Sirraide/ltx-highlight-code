@@ -96,7 +96,7 @@
         %% Write data to a file so we can run a command on it to apply syntax highlighting.
         \@MD@tmpwrite{\noexpand\makeatletter #2 \noexpand\makeatother}%
         %% Apply syntax highlighting to the code in \jobname.tmp
-        \immediate\write18{"\MDHighlightEXE" #1 \MDTempFileName > \MDTempFileName}%
+        \immediate\write18{"\MDHighlightEXE" #1 \MDTempFileName > \MDTempFileName.1}%
     %% Otherwise, just use the code.
     \else
         #2%
@@ -114,7 +114,7 @@
             \parskip\MDCodeBlockLineSkipAmount\relax
             \@MD@obeylines
             \@MD@obeybraces
-            \input{\MDTempFileName}%
+            \input{\MDTempFileName.1}%
         \endgroup
     \fi
 
