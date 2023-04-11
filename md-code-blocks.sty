@@ -9,9 +9,6 @@
 
 \ProcessOptions\relax
 
-%% Colours.
-\def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
-
 %% Skip to use before and after code blocks. Can be redefined by the user.
 \let\MDCodeBlockSkipAmount\medskipamount
 
@@ -27,9 +24,17 @@
 %% Name of the executable to use for syntax highlighting.
 \def\MDHighlightEXE{ltx-highlight-code}
 
+%% Run code at the beginning of a code block.
+\def\MDAtBeginCodeBlock{\g@addto@macro\@MD@begin@codeblockhook}
+\let\@MD@begin@codeblockhook\@empty
+
 %% Switch to allow page breaks in code blocks.
 \def\MDAllowBreak{\@MD@allow@breaktrue}
 \newif\if@MD@allow@break \@MD@allow@breakfalse
+
+%% Typeset Colours. Uses of this command can’t use {} since they
+%% are interpreted literally.
+\def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
 
 %% Temporary output file.
 \newwrite\@MD@tmpout
@@ -41,7 +46,7 @@
     \immediate\closeout\@MD@tmpout
 }
 
-%% Define this now because we won’t be able do use \char` later.
+%% Define this now because we won’t be able to use \char` later.
 \let\@MD@backquote`
 \let\MDTextBackquote\@MD@backquote
 
@@ -51,7 +56,8 @@
 %% Remove first skip before next paragraph.
 \def\@MD@nextparunskip{\everypar{\setbox\z@\lastbox\everypar{}}}
 
-%% This definition is used when emitting a code block to a file.
+%% This definition is used when emitting a code block to a file. This
+%% is just a dummy definition that never gets expanded.
 \protected\def\@MD@Brk{\relax}
 
 %% Actual definition of \@MD@Brk. This is basically just \par, but adjusted
@@ -78,14 +84,14 @@
 \catcode``=\active
 
 %% `   starts tt mode
-%% ``  does nothing
+%% ``  literal `
 %% ``` starts code block
 \def`{\@ifnextchar`\@MD@doublebackquote\@MD@singlebackquote}
 
 %% Single ` starts tt mode to be closed by next `.
 \def\@MD@singlebackquote{\begingroup\ttfamily\let`\endgroup}
 
-%% Double `` starts code block if followed by another `, else does nothing.
+%% Double `` starts code block if followed by another `, else inserts literal `.
 %% We still need to consume the second `, so expand a \@gobble first.
 \def\@MD@doublebackquote{
     \expandafter\@ifnextchar
@@ -94,7 +100,7 @@
     \expandafter\@MD@triplebackquote@start
     \expandafter\@MD@triplebackquote
     \expandafter}%
-    \expandafter\relax
+    \expandafter\@MD@backquote
     \@gobble
 }
 
@@ -115,6 +121,7 @@
 %% Box that wraps the code block to prevent it from being broken across pages.
 \long\def\@MD@box#1{%
     \let\@MD@Brk\@MD@Typeset@Brk
+    \@MD@begin@codeblockhook
     \if@MD@allow@break#1\else\vbox{#1}\fi
 }
 
