@@ -91,9 +91,13 @@ struct trie {
     }
 };
 
+std::string colour_string_prefix(std::string_view langname, std::string_view colour) {
+    return fmt::format(R"(\@MD@Color {}\@MD@ {}\@MD@ )", langname, colour);
+}
+
 /// Highlight keywords in a string.
 template <std::size_t N>
-void highlight_keywords(std::string& text, std::string_view const (&keywords)[N]) {
+void highlight_keywords(std::string& text, std::string_view langname, std::string_view const (&keywords)[N]) {
     /// Build trie.
     trie tr;
     for (auto keyword : keywords) tr.insert(keyword);
@@ -102,6 +106,9 @@ void highlight_keywords(std::string& text, std::string_view const (&keywords)[N]
     /// Match keywords.
     auto matches = tr.match(text);
 
+    /// Macro call to insert for keywords.
+    auto kwstr = colour_string_prefix(langname, "Keyword");
+
     /// Surround the positions with `\MDKeyword{}`.
     for (auto& m : rgs::reverse_view(matches)) {
         /// Ignore matches not followed by whitespace, an operator, or the end of the string.
@@ -109,7 +116,7 @@ void highlight_keywords(std::string& text, std::string_view const (&keywords)[N]
         if (m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
 
         text.insert(m.pos + m.len, "\\@MD@");
-        text.insert(m.pos, "\\@MD@Keyword ");
+        text.insert(m.pos, kwstr);
     }
 }
 
@@ -218,7 +225,7 @@ void highlight_cxx(std::string& text) {
         "xor_eq",
     };
 
-    highlight_keywords(text, keywords);
+    highlight_keywords(text, "C++", keywords);
 }
 
 /// The only thing I can stand less than Go is Go without syntax highlighting.
@@ -228,6 +235,7 @@ void highlight_go(std::string& text) {
         "default",
         "func",
         "interface",
+        "any",
         "select",
         "case",
         "defer",
@@ -275,7 +283,7 @@ void highlight_go(std::string& text) {
         "nil",
     };
 
-    highlight_keywords(text, keywords);
+    highlight_keywords(text, "Go", keywords);
 }
 
 int main(int argc, char** argv) {

@@ -10,10 +10,7 @@
 \ProcessOptions\relax
 
 %% Colours.
-\definecolor{MDKeywordColor}{HTML}{0000FF}
-
-%% Colour macros.
-\def\@MD@Keyword#1\@MD@{\textcolor{MDKeywordColor}{#1}}
+\def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
 
 %% Skip to use before and after code blocks. Can be redefined by the user.
 \let\MDCodeBlockSkip\medskip
