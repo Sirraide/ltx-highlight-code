@@ -86,7 +86,7 @@
 %% `   starts tt mode
 %% ``  literal `
 %% ``` starts code block
-\def`{\@ifnextchar`\@MD@doublebackquote\@MD@singlebackquote}
+\protected\def`{\@ifnextchar`\@MD@doublebackquote\@MD@singlebackquote}
 
 %% Single ` starts tt mode to be closed by next `.
 \def\@MD@singlebackquote{\begingroup\ttfamily\let`\endgroup}
