@@ -180,15 +180,15 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
 
 void highlight_cxx(std::string& text) {
     static constexpr std::string_view keywords[]{
-        "#include",
-        "#define",
-        "#undef",
-        "#if",
-        "#ifdef",
-        "#ifndef",
-        "#else",
-        "#elif",
-        "#endif",
+        "\\#include",
+        "\\#define",
+        "\\#undef",
+        "\\#if",
+        "\\#ifdef",
+        "\\#ifndef",
+        "\\#else",
+        "\\#elif",
+        "\\#endif",
         "alignas",
         "alignof",
         "and",
@@ -351,6 +351,7 @@ int main(int argc, char** argv) {
 
     if (lang == "C++") highlight_cxx(text);
     else if (lang == "Go") highlight_go(text);
+    else if (lang == "Text") {}
     else die("Unknown language '{}'", lang);
 
     std::fwrite(text.data(), 1, text.size(), stdout);
