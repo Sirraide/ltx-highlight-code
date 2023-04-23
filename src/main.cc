@@ -19,6 +19,7 @@ enum struct kind {
     ignore,
     comment,
     string,
+    escape_sequence,
 };
 
 /// Trie for Aho-Corasick string matching.
@@ -129,25 +130,33 @@ std::string colour_string_prefix(std::string_view langname, std::string_view col
     return fmt::format(R"(\@MD@Color {}\@MD@ {}\@MD@ )", langname, colour);
 }
 
+/// Parameters for highlighting.
+struct highlight_params {
+    std::string_view lang_name;
+    std::span<const char> string_delimiters;
+    std::string_view escape_sequences;
+    std::string_view line_comment_prefix;
+    std::span<const std::string_view> keywords;
+};
+
 /// Highlight code in a string.
-template <std::size_t N>
-void highlight(
-    std::string& text,
-    std::string_view langname,
-    std::string_view string_delimiters,
-    std::string_view comment_prefix,
-    std::string_view const (&keywords)[N]
-) {
+void highlight(std::string& text, const highlight_params& params) {
     static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
+
+    /// Prepend `\\` to escape sequences. Getting LaTeX to print a single escape char into
+    /// a file is kind of a pain, so we just resort to printing two of them instead.
+    std::vector<std::string> escape_sequences;
+    for (auto e : params.escape_sequences) escape_sequences.push_back(fmt::format("\\\\{}", e));
 
     /// Build trie.
     trie tr;
-    for (auto keyword : keywords) tr.insert(keyword, kind::keyword);
+    for (auto keyword : params.keywords) tr.insert(keyword, kind::keyword);
     for (usz i = 0; i < operators.size(); ++i) tr.insert(operators.substr(i, 1), kind::operator_);
-    for (auto c : string_delimiters) tr.insert(std::string_view(&c, 1), kind::string);
+    for (auto c : params.string_delimiters) tr.insert(std::string_view(&c, 1), kind::string);
+    for (const auto& e : escape_sequences) tr.insert(e, kind::escape_sequence);
     tr.insert("::", kind::operator_);
     tr.insert("T", kind::type);
-    tr.insert(comment_prefix, kind::comment);
+    tr.insert(params.line_comment_prefix, kind::comment);
     tr.finalise();
 
     /// Match keywords.
@@ -161,14 +170,16 @@ void highlight(
     }
 
     /// Macro call to insert for keywords/operators.
-    auto kwstr = colour_string_prefix(langname, "Keyword");
-    auto opstr = colour_string_prefix(langname, "Operator");
-    auto tystr = colour_string_prefix(langname, "Type");
-    auto comment_start = fmt::format("\\MD@LineComment@Start {}\\@MD@ ", langname);
-    auto string_start = fmt::format("\\MD@String@Start {}\\@MD@ ", langname);
+    auto kwstr = colour_string_prefix(params.lang_name, "Keyword");
+    auto opstr = colour_string_prefix(params.lang_name, "Operator");
+    auto tystr = colour_string_prefix(params.lang_name, "Type");
+    auto escape_start = fmt::format("\\@MD@Escape@Start {}\\@MD@ ", params.lang_name);
+    auto comment_start = fmt::format("\\@MD@LineComment@Start {}\\@MD@ ", params.lang_name);
+    auto string_start = fmt::format("\\@MD@String@Start {}\\@MD@ ", params.lang_name);
 
     /// Whether we’re in a string.
-    bool in_string = false;
+    usz string_end = std::string::npos;
+    auto in_string = [&] { return string_end != std::string::npos; };
 
     /// Highlight matches.
     for (auto& m : rgs::reverse_view(matches)) {
@@ -178,13 +189,24 @@ void highlight(
 
         /// Mark the start and end of strings.
         if (m.k == kind::string) {
-            if (in_string) text.insert(m.pos, string_start);
-            else text.insert(m.pos + m.len, "\\MD@String@End ");
-            in_string = not in_string;
+            if (in_string()) {
+                text.insert(string_end, "\\@MD@String@End");
+                text.insert(m.pos, string_start);
+                string_end = std::string::npos;
+            } else string_end = m.pos + m.len;
         }
 
-        /// Skip anything else if we’re in as string.
-        if (in_string) continue;
+        /// Skip anything other than escape sequences if we’re in as string.
+        if (in_string()) {
+            if (m.k == kind::escape_sequence) {
+                static constexpr std::string_view escape_end = "\\@MD@Escape@End ";
+                fmt::print(stderr , "Escape sequence: \"{}\"\n", text.substr(m.pos, m.len));
+                text.insert(m.pos + m.len, escape_end);
+                text.insert(m.pos, escape_start);
+                string_end += escape_end.size() + escape_start.size();
+            }
+            continue;
+        }
 
         /// Handle operators.
         if (m.k != kind::operator_ and m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
@@ -197,7 +219,7 @@ void highlight(
             if (end == std::string::npos) end = text.size();
 
             /// Colour the line.
-            text.insert(end, "\\MD@LineComment@End ");
+            text.insert(end, "\\@MD@LineComment@End ");
             text.insert(m.pos, comment_start);
             continue;
         }
@@ -318,7 +340,16 @@ void highlight_cxx(std::string& text) {
         "xor_eq",
     };
 
-    highlight(text, "C++", "\"'", "//", keywords);
+    highlight(
+        text,
+        highlight_params{
+            .lang_name = "C++",
+            .string_delimiters = "'\"",
+            .escape_sequences = "'\"\\nrt",
+            .line_comment_prefix = "//",
+            .keywords = keywords,
+        }
+    );
 }
 
 /// The only thing I can stand less than Go is Go without syntax highlighting.
@@ -376,7 +407,16 @@ void highlight_go(std::string& text) {
         "nil",
     };
 
-    highlight(text, "Go", "\"'", "//", keywords);
+    highlight(
+        text,
+        highlight_params{
+            .lang_name = "Go",
+            .string_delimiters = "\"'",
+            .escape_sequences = "'\"\\nrt",
+            .line_comment_prefix = "//",
+            .keywords = keywords,
+        }
+    );
 }
 
 int main(int argc, char** argv) {

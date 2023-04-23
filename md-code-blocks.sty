@@ -37,18 +37,23 @@
 \def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
 
 %% Typeset line comments.
-\protected\def\MD@LineComment@Start#1\@MD@{%
+\protected\def\@MD@LineComment@Start#1\@MD@{%
     \begingroup\color{MD#1CommentColor}%
     \def\@MD@Color##1\@MD@##2\@MD@##3\@MD@{##3}%
 }
-\protected\def\MD@LineComment@End{\endgroup}
+\protected\def\@MD@LineComment@End{\endgroup}
 
 %% Typeset strings.
-\protected\def\MD@String@Start#1\@MD@{%
+\protected\def\@MD@String@Start#1\@MD@{%
     \begingroup\color{MD#1StringColor}%
     \def\@MD@Color##1\@MD@##2\@MD@##3\@MD@{##3}%
 }
-\protected\def\MD@String@End{\endgroup}
+\protected\def\@MD@String@End{\endgroup}
+
+%% Typeset Escape sequences.
+\protected\def\@MD@Escape@Start#1\@MD@#2\@MD@Escape@End{%
+    \textcolor{MD#1EscapeColor}{#2}%
+}
 
 %% Temporary output file.
 \newwrite\@MD@tmpout
@@ -98,6 +103,7 @@
 \def\@MD@obeyspecial{
     \catcode`\#=12
     \catcode`\%=12
+    \protected\def\\{\textbackslash}%
 }
 
 %% Make ` active.
