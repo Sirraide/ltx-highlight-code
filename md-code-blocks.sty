@@ -43,6 +43,13 @@
 }
 \protected\def\MD@LineComment@End{\endgroup}
 
+%% Typeset strings.
+\protected\def\MD@String@Start#1\@MD@{%
+    \begingroup\color{MD#1StringColor}%
+    \def\@MD@Color##1\@MD@##2\@MD@##3\@MD@{##3}%
+}
+\protected\def\MD@String@End{\endgroup}
+
 %% Temporary output file.
 \newwrite\@MD@tmpout
 
