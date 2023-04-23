@@ -17,6 +17,7 @@ enum struct kind {
     keyword,
     type,
     ignore,
+    comment,
 };
 
 /// Trie for Aho-Corasick string matching.
@@ -129,7 +130,7 @@ std::string colour_string_prefix(std::string_view langname, std::string_view col
 
 /// Highlight keywords in a string.
 template <std::size_t N>
-void highlight_keywords(std::string& text, std::string_view langname, std::string_view const (&keywords)[N]) {
+void highlight_keywords(std::string& text, std::string_view langname, std::string_view comment_prefix, std::string_view const (&keywords)[N]) {
     static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
     /*
         /// These sequences should be ignored.
@@ -143,6 +144,7 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
     for (usz i = 0; i < operators.size(); ++i) tr.insert(operators.substr(i, 1), kind::operator_);
     tr.insert("::", kind::operator_);
     tr.insert("T", kind::type);
+    tr.insert(comment_prefix, kind::comment);
     /*for (auto seq : ignore_sequences) tr.insert(seq, kind::ignore);*/
     tr.finalise();
 
@@ -160,6 +162,7 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
     auto kwstr = colour_string_prefix(langname, "Keyword");
     auto opstr = colour_string_prefix(langname, "Operator");
     auto tystr = colour_string_prefix(langname, "Type");
+    auto comment_start = fmt::format( "\\MD@LineComment@Start {}\\@MD@ ", langname);
 
     /// Surround the positions with `\MDKeyword{}`.
     for (auto& m : rgs::reverse_view(matches)) {
@@ -168,6 +171,20 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
         if (m.k == kind::ignore) continue;
         if (m.k != kind::operator_ and m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
 
+        /// If it’s a comment, colour the rest of the line.
+        if (m.k == kind::comment) {
+            /// Find the end of the line.
+            usz end = text.find("\\@MD@Brk", m.pos + m.len);
+            if (end == std::string::npos) end = text.find("\\makeatother");
+            if (end == std::string::npos) end = text.size();
+
+            /// Colour the line.
+            text.insert(end, "\\MD@LineComment@End ");
+            text.insert(m.pos, comment_start);
+            continue;
+        }
+
+        /// Otherwise, colour the match appropriately.
         text.insert(m.pos + m.len, "\\@MD@ ");
         switch (m.k) {
             case kind::operator_: text.insert(m.pos, opstr); break;
@@ -180,15 +197,15 @@ void highlight_keywords(std::string& text, std::string_view langname, std::strin
 
 void highlight_cxx(std::string& text) {
     static constexpr std::string_view keywords[]{
-        "\\#include",
-        "\\#define",
-        "\\#undef",
-        "\\#if",
-        "\\#ifdef",
-        "\\#ifndef",
-        "\\#else",
-        "\\#elif",
-        "\\#endif",
+        "#include",
+        "#define",
+        "#undef",
+        "#if",
+        "#ifdef",
+        "#ifndef",
+        "#else",
+        "#elif",
+        "#endif",
         "alignas",
         "alignof",
         "and",
@@ -283,7 +300,7 @@ void highlight_cxx(std::string& text) {
         "xor_eq",
     };
 
-    highlight_keywords(text, "C++", keywords);
+    highlight_keywords(text, "C++", "//", keywords);
 }
 
 /// The only thing I can stand less than Go is Go without syntax highlighting.
@@ -341,7 +358,7 @@ void highlight_go(std::string& text) {
         "nil",
     };
 
-    highlight_keywords(text, "Go", keywords);
+    highlight_keywords(text, "Go", "//", keywords);
 }
 
 int main(int argc, char** argv) {

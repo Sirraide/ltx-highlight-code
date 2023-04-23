@@ -36,6 +36,13 @@
 %% are interpreted literally.
 \def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
 
+%% Typeset line comments.
+\protected\def\MD@LineComment@Start#1\@MD@{%
+    \begingroup\color{MD#1CommentColor}%
+    \def\@MD@Color##1\@MD@##2\@MD@##3\@MD@{##3}%
+}
+\protected\def\MD@LineComment@End{\endgroup}
+
 %% Temporary output file.
 \newwrite\@MD@tmpout
 
@@ -80,6 +87,12 @@
     \catcode`}=12
 }
 
+%% Treat % literally.
+\def\@MD@obeyspecial{
+    \catcode`\#=12
+    \catcode`\%=12
+}
+
 %% Make ` active.
 \catcode``=\active
 
@@ -113,6 +126,7 @@
     \@MD@obeyspaces
     \@MD@obeylines
     \@MD@obeybraces
+    \@MD@obeyspecial
     \parindent\z@\relax
     \parskip\MDCodeBlockLineSkipAmount\relax
     \let`\@MD@backquote
@@ -150,7 +164,8 @@
             \parindent\z@\relax
             \@MD@obeylines
             \@MD@obeybraces
-            \@MD@box{\input{\MDTempFileName.1}}%
+            {\@MD@obeyspecial
+            \@MD@box{\input{\MDTempFileName.1}}}%
         \endgroup
     \fi
 
