@@ -130,6 +130,12 @@ std::string colour_string_prefix(std::string_view langname, std::string_view col
     return fmt::format(R"(\@MD@Color {}\@MD@ {}\@MD@ )", langname, colour);
 }
 
+/// Check if this character is valid in an identifier. This is so we highlight
+/// e.g. `if`, but not `get_if`.
+bool iscontinue(char c) {
+    return std::isalnum(c) or c == '_';
+}
+
 /// Parameters for highlighting.
 struct highlight_params {
     std::string_view lang_name;
@@ -223,6 +229,9 @@ void highlight(std::string& text, const highlight_params& params) {
             text.insert(m.pos, comment_start);
             continue;
         }
+
+        /// Keywords and types must not be preceded by a character that may be part of an identifier.
+        if ((m.k == kind::keyword or m.k == kind::type) and m.pos > 0 and iscontinue(text[m.pos - 1])) continue;
 
         /// Otherwise, colour the match appropriately.
         text.insert(m.pos + m.len, "\\@MD@ ");
