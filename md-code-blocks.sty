@@ -1,5 +1,14 @@
 \NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{md-code-blocks}[2023/04/11 Package that provides Markdown code blocks and syntax highlighting]
+\ProvidesPackage{md-code-blocks}[2023/04/24 Package that provides Markdown code blocks and syntax highlighting]
+
+%% Sanity check.
+\RequirePackage{iftex}
+\ifxetex\else
+    \PackageError{md-code-blocks}{This package requires XeTeX.}
+\fi
+
+%% We need xcolor, and if we don’t include fontspec here, everything just... breaks horribly.
+\RequirePackage{fontspec}
 \RequirePackage{xcolor}
 \RequirePackage{color}
 
@@ -99,11 +108,20 @@
     \catcode`}=12
 }
 
-%% Treat % literally.
+%% Treat special characters literally.
 \def\@MD@obeyspecial{
-    \catcode`\#=12
-    \catcode`\%=12
+    \catcode`\#=12\relax
+    \catcode`\%=12\relax
     \protected\def\\{\textbackslash}%
+}
+
+%% Currently, there is no way of getting this to work in e.g. footnotes w/o doing this, sadly.
+\AtBeginDocument{
+    \catcode`\_=\active\relax
+    \protected\def\_{\textunderscore\allowbreak}%
+    \catcode`~=12\relax
+    \catcode`\^=11\relax
+    \catcode`\&=11\relax
 }
 
 %% Make ` active.
