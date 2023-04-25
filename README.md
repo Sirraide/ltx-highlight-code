@@ -46,7 +46,8 @@ int main() {
 ```
 ````
 
-In code blocks, all whitespace—especially line-initial whitespace—as well as special characters are preserved.
+In code blocks, all whitespace—especially line-initial whitespace—as well as special characters are preserved. The only
+exception is backslashes. If you want to use a backslash in a code block, use `\\` instead.
 
 The language name is case-sensitive. The following languages are currently supported:
 - C++
