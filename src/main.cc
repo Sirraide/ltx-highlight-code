@@ -366,6 +366,103 @@ void highlight_cxx(std::string& text) {
         }
     );
 }
+
+void highlight_c(std::string& text) {
+    static constexpr std::string_view keywords[]{
+        "_Alignas",
+        "_Alignof",
+        "_Atomic",
+        "_BitInt",
+        "_Bool",
+        "_Complex",
+        "_Decimal32",
+        "_Decimal64",
+        "_Decimal128",
+        "_Generic",
+        "_Imaginary",
+        "_Noreturn",
+        "_Pragma",
+        "_Static_assert",
+        "_Thread_local",
+        "#embed",
+        "#error",
+        "#include",
+        "#line",
+        "#pragma",
+        "#warning",
+        "#define",
+        "#undef",
+        "#if",
+        "#ifdef",
+        "#ifndef",
+        "#else",
+        "#elif",
+        "#elifdef",
+        "#elifndef",
+        "#endif",
+        "alignas",
+        "alignof",
+        "asm",
+        "auto",
+        "break",
+        "case",
+        "const",
+        "constexpr",
+        "continue",
+        "default",
+        "do",
+        "else",
+        "enum",
+        "extern",
+        "false",
+        "float",
+        "for",
+        "fortran",
+        "goto",
+        "if",
+        "inline",
+        "NULL",
+        "nullptr",
+        "register",
+        "restrict",
+        "return",
+        "sizeof",
+        "static",
+        "static_assert",
+        "struct",
+        "switch",
+        "thread_local",
+        "true",
+        "typedef",
+        "typeof",
+        "typeof_unqual",
+        "union",
+        "volatile",
+        "while",
+    };
+
+    static constexpr std::string_view types[]{
+        "bool",
+        "char",
+        "double",
+        "float",
+        "int",
+        "long",
+        "short",
+        "signed",
+        "unsigned",
+        "void",
+    };
+
+    highlight(
+        text,
+        highlight_params{
+            .lang_name = "C",
+            .string_delimiters = "'\"",
+            .escape_sequences = "'\"\\nrt",
+            .line_comment_prefix = "//",
+            .keywords = keywords,
+            .types = types,
         }
     );
 }
@@ -449,6 +546,7 @@ int main(int argc, char** argv) {
 
     if (lang == "C++") highlight_cxx(text);
     else if (lang == "Go") highlight_go(text);
+    else if (lang == "C") highlight_c(text);
     else if (lang == "Text") {
     } else die("Unknown language '{}'", lang);
 
