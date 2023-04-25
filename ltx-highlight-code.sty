@@ -7,8 +7,8 @@
 
 %% Sanity check.
 \sys_if_engine_xetex:F {
-    \msg_new:nnn { md-code-blocks } { xetex } { This~package~requires~Xe(La)TeX }
-    \msg_fatal:nn { md-code-blocks } { xetex }
+    \msg_new:nnn { ltx-highlight-code } { xetex } { This~package~requires~Xe(La)TeX }
+    \msg_fatal:nn { ltx-highlight-code } { xetex }
 }
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -119,7 +119,7 @@
         %% Otherwise, use the default style if it exists.
         \cs_if_exist_use:cTF { \__md_style_name:nn {Default}{#2} } {} {
             %% If it doesn’t, do nothing, but issue a warning.
-            \msg_warning:nn { md-code-blocks } { Unknown~style~`#2'~for~`#1' }
+            \msg_warning:nn { ltx-highlight-code } { Unknown~style~`#2'~for~`#1' }
         }
     }
 }
@@ -133,8 +133,8 @@
 %% Check that we can run shell commands.
 \cs_set:Nn \__md_check_shell: {
     \sys_if_shell_unrestricted:TF {} {
-        \msg_new:nnn { md-code-blocks } { shell } { This~package~requires~shell~access.~Please~add~the~`--enable-write18'~flag~to~your~LaTeX~command. }
-        \msg_fatal:nn { md-code-blocks } { shell }
+        \msg_new:nnn { ltx-highlight-code } { shell } { This~package~requires~shell~access.~Please~add~the~`--enable-write18'~flag~to~your~LaTeX~command. }
+        \msg_fatal:nn { ltx-highlight-code } { shell }
     }
 }
 
