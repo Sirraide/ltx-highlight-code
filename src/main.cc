@@ -163,7 +163,6 @@ void highlight(std::string& text, const highlight_params& params) {
     for (const auto& e : escape_sequences) tr.insert(e, kind::escape_sequence);
     for (const auto& t : params.types) tr.insert(t, kind::type);
     tr.insert("::", kind::operator_);
-    tr.insert("T", kind::type);
     tr.insert(params.line_comment_prefix, kind::comment);
     tr.finalise();
 
@@ -265,14 +264,9 @@ void highlight_cxx(std::string& text) {
         "auto",
         "bitand",
         "bitor",
-        "bool",
         "break",
         "case",
         "catch",
-        "char",
-        "char8_t",
-        "char16_t",
-        "char32_t",
         "class",
         "compl",
         "concept",
@@ -289,7 +283,6 @@ void highlight_cxx(std::string& text) {
         "default",
         "delete",
         "do",
-        "double",
         "dynamic_cast",
         "else",
         "enum",
@@ -297,14 +290,11 @@ void highlight_cxx(std::string& text) {
         "export",
         "extern",
         "false",
-        "float",
         "for",
         "friend",
         "goto",
         "if",
         "inline",
-        "int",
-        "long",
         "mutable",
         "namespace",
         "new",
@@ -322,8 +312,6 @@ void highlight_cxx(std::string& text) {
         "reinterpret_cast",
         "requires",
         "return",
-        "short",
-        "signed",
         "sizeof",
         "static",
         "static_assert",
@@ -340,15 +328,30 @@ void highlight_cxx(std::string& text) {
         "typeid",
         "typename",
         "union",
-        "unsigned",
         "using",
         "virtual",
-        "void",
         "volatile",
-        "wchar_t",
         "while",
         "xor",
         "xor_eq",
+    };
+
+    static constexpr std::string_view types[]{
+        "bool",
+        "char",
+        "char8_t",
+        "char16_t",
+        "char32_t",
+        "double",
+        "float",
+        "int",
+        "long",
+        "short",
+        "signed",
+        "T",
+        "unsigned",
+        "void",
+        "wchar_t",
     };
 
     highlight(
@@ -359,6 +362,10 @@ void highlight_cxx(std::string& text) {
             .escape_sequences = "'\"\\nrt",
             .line_comment_prefix = "//",
             .keywords = keywords,
+            .types = types,
+        }
+    );
+}
         }
     );
 }
