@@ -31,6 +31,19 @@ Note that special characters such as `&` and `_` are escaped automatically.
 
 To insert a backtick character, use two backticks: ` `` `. Note that this does not work inside of inline code. 
 
+### Inline code in other commands
+Code blocks and inline code are rather volatile in that passing them to other
+commands (e.g. `\textit`, `\footnote`, `\section`) will probably break them. Using them
+outside of regular text is best avoided.
+
+Instead, you can use the `\MDPrepareCode` and `\MDInsertCode` commands which will prepare
+inline code for insertion and then insert it later, respectively. For example, to insert
+the code `std::to_string(42)` into a footnote, you would do something like this:
+```latex
+\MDPrepareCode{`std::to_string(42)`}
+\footnote{To convert 42 to a string in C++, do \MDInsertCode.}
+```
+
 ### Code blocks
 To use code blocks, surround the code with three backticks, followed by the language name inside 
 square brackets like so:
