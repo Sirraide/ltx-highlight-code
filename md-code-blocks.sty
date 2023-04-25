@@ -26,6 +26,11 @@
 \NewDocumentCommand \MDAtBeginCodeBlock {m} { \tl_gput_right:Nn \g__md_at_begin_code_block_tl { #1 } }
 \NewDocumentCommand \MDAllowBreak {} { \bool_gset_true:N \g__md_allow_break_bool }
 
+%% Helpers to allow setting custom escape, group begin, and group end chars.
+\NewDocumentCommand \MDSetEscapeCharacter {m} { \__md_read_in_as_catcode:NN #1 0 }
+\NewDocumentCommand \MDSetGroupBeginCharacter {m} { \__md_read_in_as_catcode:NN #1 1 }
+\NewDocumentCommand \MDSetGroupEndCharacter {m} { \__md_read_in_as_catcode:NN #1 2 }
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Constants
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -33,6 +38,24 @@
 \cs_generate_variant:Nn \tl_const:Nn { Nx }
 \int_const:Nx \c__md_backquote_int { 96 }
 \tl_const:Nx \c__md_backquote_tl { \char_generate:nn { \c__md_backquote_int } { 12 } }
+
+%% Special characters.
+\cs_generate_variant:Nn \seq_const_from_clist:Nn { Nx }
+\seq_const_from_clist:Nx \c__md_special_chars_seq {
+    35,  %% #
+    36,  %% $
+    37,  %% %
+    38,  %% &
+    92,  %% \
+    94,  %% ^
+    95,  %% _
+    123, %% {
+    125, %% }
+    126  %% ~
+}
+
+%% All catcodes.
+\seq_const_from_clist:Nx \c__md_all_catcodes_numeric_seq {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15}
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  User Configurable Options
@@ -60,6 +83,15 @@
 
 %% Switch to allow page breaks in code blocks.
 \bool_new:N \g__md_allow_break_bool
+
+%% This stores the old catcodes of special characters.
+\seq_new:N \g__md_old_catcodes_seq
+
+%% Character-to-catcode dictionary.
+\prop_new:N \g__md_char_to_catcode_prop
+
+%% Second character-to-catcode dictionary for resetting.
+\prop_new:N \g__md_char_to_catcode_reset_prop
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Colour Handling
@@ -106,22 +138,8 @@
     }
 }
 
-%% Remove first skip before next paragraph.
-\cs_set:Nn \__md_next_par_unskip: {
-    \makeatletter
-        \everypar { \setbox\z@\lastbox \everypar{} }
-    \makeatother
-}
-
-%% Wrap the contents of a code block in a vbox to prevent page breaks.
-%\long\def\@MD@box#1{%
-%    \let\@MD@Brk\@MD@Typeset@Brk
-%    \tl_use:N \g__md_at_begin_code_block_tl
-%    \if@MD@allow@break#1\else\vbox{#1}\fi
-%}
-
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%  Main Implementation
+%%  Parsing, Lexing, and Spacing Shenanigans
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Make ` active at the start of the document.
 \AtBeginDocument {
@@ -132,25 +150,34 @@
 %% The character ^^P (ASCII 0x10, ‘data link escape’) is used instead of \ as the command escape
 %% character; if for some ungodly reason, you find yourself having to use this character in your
 %% document, then please feel free to submit a pull request to change this.
-\char_set_catcode_escape:N \^^P
+\char_set_catcode_escape:n {16}
 
-%% Special characters.
-\cs_generate_variant:Nn \seq_const_from_clist:Nn { Nx }
-\seq_const_from_clist:Nx \c__md_special_chars_seq {
-    35,  %% #
-    36,  %% $
-    37,  %% %
-    38,  %% &
-    92,  %% \
-    94,  %% ^
-    95,  %% _
-    123, %% {
-    125, %% }
-    126  %% ~
+%% Similarly, the characters ^^B and ^^C (ASCII 2 and 3, ‘start of text’ and ‘end of text’) are
+%% used instead of { and }.
+\char_set_catcode_group_begin:n {2}
+\char_set_catcode_group_end:n {3}
+
+%% Remove first skip before next paragraph.
+\cs_set:Nn \__md_next_par_unskip: {
+    \makeatletter
+        \everypar { \setbox\z@\lastbox \everypar{} }
+    \makeatother
 }
 
-%% This stores the old catcodes of special characters.
-\seq_new:N \g__md_old_catcodes_seq
+%% Mark that a character should be set to a certain catcode when reading in code blocks.
+\cs_set:Npn \__md_read_in_as_catcode:NN #1#2 {
+    \prop_gput:Nxx \g__md_char_to_catcode_prop { #1 } { #2 }
+}
+
+%% Force-insert a space, even at the beginning of a line.
+\cs_set:Nn \__md_force_space: { \leavevmode\nobreak\space }
+
+%% Wrap the contents of a code block in a vbox to prevent page breaks.
+%\long\def\@MD@box#1{%
+%    \let\@MD@Brk\@MD@Typeset@Brk
+%    \tl_use:N \g__md_at_begin_code_block_tl
+%    \if@MD@allow@break#1\else\vbox{#1}\fi
+%}
 
 %% This function sets up the environment so be somewhat similar to how verbatim text is parsed.
 \cs_set:Nn \__md_setup_verbatim: {
@@ -187,6 +214,57 @@
     \char_set_catcode_active:n { \c__md_backquote_int }
 }
 
+%% This function prepares reading in a code block by setting some catcodes,
+%% switchging to a typewriter fonts, and fixing spacing. It assumes that
+%% \__md_setup_verbatim: has already been called.
+\cs_set:Nn \__md_setup_read_in: {
+    %% Set font.
+    \ttfamily
+
+    %% Treat spaces and lines literally.
+    \char_set_active_eq:NN \^^20 \__md_force_space:
+
+    %% No indentation.
+    \parindent 0pt
+
+    %% For each character in the map, set the catcode to the value in the map.
+    %% Also store the old catcode in another map so we can reset it later.
+    \prop_gclear:N \g__md_char_to_catcode_reset_prop
+    \prop_map_inline:Nn \g__md_char_to_catcode_prop {
+        \prop_gput:Nxx \g__md_char_to_catcode_reset_prop { ##1 } { \char_value_catcode:n {##2} }
+        \char_set_catcode:nn { `##1 } { ##2 }
+    }
+}
+
+%% Undo the changes made by \__md_setup_read_in:.
+\cs_set:Nn \__md_undo_read_in: {
+    %% For each character in the reset map, set the catcode to the value in the map.
+    \prop_map_inline:Nn \g__md_char_to_catcode_reset_prop {
+        \char_set_catcode:nn { `##1 } { ##2 }
+    }
+}
+
+%% Insert an ‘empty line’.
+\cs_set:Nn \__md_empty_line: {
+    \skip_vertical:N \g__md_lempty_skip_dim
+}
+
+%% Read in a line of text. If the line is empty, instead insert an ‘empty line’.
+\cs_set:Npn \__md_read_in_line:n #1 {
+    %% This is the only way I could find to check if a line is empty:
+    %%
+    %% Convert all tokens in the line except for the first to a string. If the
+    %% resulting string is empty, then the line is empty (because a non-empty
+    %% line will always contain at least one other character *and* a line break).
+    \str_set:Nx \l_tmpa_str { \str_tail:n {#1} }
+    \str_if_empty:NTF \l_tmpa_str { \__md_empty_line: } {
+        #1
+    }
+}
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Main Implementation
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle the first ` in a sequence of one or more `.
 \cs_set:Npn \__md_single_backquote:w {
     \peek_charcode_remove:NTF ` { \__md_double_backquote:w } {
@@ -205,7 +283,6 @@
 
 %% Handle the second ` in a sequence of two or more `.
 \cs_set:Npn \__md_double_backquote:w {
-
     \peek_charcode_remove:NTF ` { \__md_triple_backquote:w } {
         %% Two backquotes just inserts a backquote.
         \tl_use:N \c__md_backquote_tl
@@ -229,9 +306,9 @@
 }
 
 %% This parses the code block as verbatim text.
-\cs_set:Npn \__md_triple_backquote_aux:w #1```{
+\cs_set:Npn \__md_triple_backquote_aux:w [#1]#2```{
     %% Split code block into lines.
-    \regex_split:nnN { \^^M } { #1 } \l_tmpa_seq
+    \regex_split:nnN { \^^M } { #2 } \l_tmpa_seq
 
     %% Highlight the code if requested. Otherwise, just write it back out.
     \bool_if:NTF \g__md_enable_highlighting_bool {
@@ -242,6 +319,23 @@
         \iow_open:Nn \g_tmpa_iow { \tl_use:N \g__md_tmp_file_name_tl }
         \seq_map_inline:Nn \l_tmpa_seq { \iow_now:Nn \g_tmpa_iow { ##1 } }
         \iow_close:N \g_tmpa_iow
+
+        %% Perform the highlighting.
+        \sys_shell_now:x {
+            \tl_use:N \g__md_highlight_exe_tl\space
+            #1\space
+            \tl_use:N \g__md_tmp_file_name_tl\space
+            >\space
+            \tl_use:N \g__md_tmp_file_name_tl .1
+        }
+
+        %% Read the highlighted text back in.
+        %% Note: \__md_setup_verbatim is still in effect.
+        \__md_setup_read_in:
+        \ior_open:Nn \g_tmpa_ior { \tl_use:N \g__md_tmp_file_name_tl }
+        \ior_map_inline:Nn \g_tmpa_ior { \__md_read_in_line:n {##1} }
+        \ior_close:N \g_tmpa_ior
+        \__md_undo_read_in:
     } {
 
     }
