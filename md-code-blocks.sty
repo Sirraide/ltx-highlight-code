@@ -1,4 +1,5 @@
-\NeedsTeXFormat{LaTeX3}
+\NeedsTeXFormat{LaTeX2e}
+\RequirePackage{expl3}
 \ProvidesExplPackage{md-code-blocks}{2023/04/25}{0.2}{Markdown code blocks and syntax highlighting}
 
 \RequirePackage{fontspec}
@@ -6,7 +7,8 @@
 
 %% Sanity check.
 \sys_if_engine_xetex:F {
-    \msg_fatal:nn { md-code-blocks } { This~package~requires~Xe(La)TeX }
+    \msg_new:nnn { md-code-blocks } { xetex } { This~package~requires~Xe(La)TeX }
+    \msg_fatal:nn { md-code-blocks } { xetex }
 }
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -15,20 +17,22 @@
 \NewDocumentCommand \MDEnableHighlighting {} { \bool_gset_true:N \g__md_enable_highlighting_bool }
 \NewDocumentCommand \MDDisableHighlighting {} { \bool_gset_false:N \g__md_enable_highlighting_bool }
 
-\NewDocumentCommand \MDSetCodeBlockSkip {m} { \dim_gset:Nx \g__md_block_skip { #1 } }
-\NewDocumentCommand \MDSetCodeBlockEmptyLineSkip {m} { \dim_gset:Nx \g__md_lempty_skip { #1 } }
-\NewDocumentCommand \MDSetCodeBlockLineSkip {m} { \dim_gset:Nx \g__md_block_lskip { #1 } }
-\NewDocumentCommand \MDSetTempFileName {m} { \tl_gset:Nx \g__md_tmp_file_name { #1 } }
-\NewDocumentCommand \MDSetHighlightExe {m} { \tl_gset:Nx \g__md_highlight_exe { #1 } }
+\NewDocumentCommand \MDSetCodeBlockSkip {m} { \dim_gset:Nx \g__md_block_skip_dim { #1 } }
+\NewDocumentCommand \MDSetCodeBlockEmptyLineSkip {m} { \dim_gset:Nx \g__md_lempty_skip_dim { #1 } }
+\NewDocumentCommand \MDSetCodeBlockLineSkip {m} { \dim_gset:Nx \g__md_block_lskip_dim { #1 } }
+\NewDocumentCommand \MDSetTempFileName {m} { \tl_gset:Nx \g__md_tmp_file_name_tl { #1 } }
+\NewDocumentCommand \MDSetHighlightExe {m} { \tl_gset:Nx \g__md_highlight_exe_tl { #1 } }
 
-\NewDocumentCommand \MDAtBeginCodeBlock {m} { \tl_gput_right:Nn \g__md_at_begin_code_block { #1 } }
+\NewDocumentCommand \MDAtBeginCodeBlock {m} { \tl_gput_right:Nn \g__md_at_begin_code_block_tl { #1 } }
 \NewDocumentCommand \MDAllowBreak {} { \bool_gset_true:N \g__md_allow_break_bool }
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Constants
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\cs_generate_variant:Nn \int_const:Nn { Nx }
+\cs_generate_variant:Nn \tl_const:Nn { Nx }
 \int_const:Nx \c__md_backquote_int { 96 }
-\tl_const:Nx \c__md_backquote { \char_generate:nn { \c__md_backquote_int } { 12 } }
+\tl_const:Nx \c__md_backquote_tl { \char_generate:nn { \c__md_backquote_int } { 12 } }
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  User Configurable Options
@@ -37,22 +41,22 @@
 \bool_new:N \g__md_enable_highlighting_bool \bool_gset_true:N \g__md_enable_highlighting_bool
 
 %% Skip to use before and after code blocks.
-\dim_new:N \g__md_block_skip \dim_gset:Nn \g__md_block_skip { \medskipamount }
+\dim_new:N \g__md_block_skip_dim \dim_gset:Nn \g__md_block_skip_dim { \medskipamount }
 
 %% Skip to use for empty lines in code blocks.
-\dim_new:N \g__md_lempty_skip \dim_gset:Nn \g__md_lempty_skip { \baselineskip }
+\dim_new:N \g__md_lempty_skip_dim \dim_gset:Nn \g__md_lempty_skip_dim { \baselineskip }
 
 %% Skip to use for \parskip in code blocks.
-\dim_new:N \g__md_block_lskip \dim_gset:Nn \g__md_block_lskip { \smallskipamount }
+\dim_new:N \g__md_block_lskip_dim \dim_gset:Nn \g__md_block_lskip_dim { \smallskipamount }
 
 %% Name of the temporary output file.
-\tl_new:N \g__md_tmp_file_name \tl_gset:Nn \g__md_tmp_file_name { temporary.tex }
+\tl_new:N \g__md_tmp_file_name_tl \tl_gset:Nn \g__md_tmp_file_name_tl { temporary.tex }
 
 %% Name of the executable to use for syntax highlighting.
-\tl_new:N \g__md_highlight_exe \tl_gset:Nn \g__md_highlight_exe { ltx-highlight-code }
+\tl_new:N \g__md_highlight_exe_tl \tl_gset:Nn \g__md_highlight_exe_tl { ltx-highlight-code }
 
 %% Code to run code at the beginning of a code block.
-\tl_new:N \g__md_at_begin_code_block
+\tl_new:N \g__md_at_begin_code_block_tl
 
 %% Switch to allow page breaks in code blocks.
 \bool_new:N \g__md_allow_break_bool
@@ -64,13 +68,13 @@
 \cs_set:Npn \__md_style_name:nn #1#2 { g__md_ #1 _ #2 _style }
 
 %% Set a style.
-\cs_set:Npn \__md_set_style #1#2#3 {
+\cs_set:Npn \__md_set_style:nnn #1#2#3 {
     \cs_gset:cn { \__md_style_name:nn {#1}{#2} } { #3 }
 }
 
 %% Define a default style.
 \cs_set:Npn \__md_set_default_style:nn #1#2 {
-    \__md_set_style { Default } { #1 } { #2 }
+    \__md_set_style:nnn { Default } { #1 } { #2 }
 }
 
 %% This function switches to a colour and style.
@@ -79,9 +83,9 @@
     \group_begin:
 
     %% If the colour is defined (e.g. g__md_C++_Keyword_style), use it.
-    \cs_if_exist_use:cTF { \__md_style_name {#1}{#2} } { } {
+    \cs_if_exist_use:cTF { \__md_style_name:nn {#1}{#2} } { } {
         %% Otherwise, use the default style if it exists.
-        \cs_if_exist_use:cTF { \__md_style_name {Default}{#2} } {} {
+        \cs_if_exist_use:cTF { \__md_style_name:nn {Default}{#2} } {} {
             %% If it doesn’t, do nothing, but issue a warning.
             \msg_warning:nn { md-code-blocks } { Unknown~style~`#2'~for~`#1' }
         }
@@ -97,28 +101,95 @@
 %% Check that we can run shell commands.
 \cs_set:Nn \__md_check_shell: {
     \sys_if_shell_unrestricted:TF {} {
-        \msg_fatal:nn { md-code-blocks } { This~package~requires~shell~access.~Please~add~the~`--enable-write18'~flag~to~your~LaTeX~command. }
+        \msg_new:nnn { md-code-blocks } { shell } { This~package~requires~shell~access.~Please~add~the~`--enable-write18'~flag~to~your~LaTeX~command. }
+        \msg_fatal:nn { md-code-blocks } { shell }
     }
 }
 
 %% Remove first skip before next paragraph.
-\cs_set:Nn \__md_next_par_unskip {
+\cs_set:Nn \__md_next_par_unskip: {
     \makeatletter
         \everypar { \setbox\z@\lastbox \everypar{} }
     \makeatother
 }
 
+%% Wrap the contents of a code block in a vbox to prevent page breaks.
+%\long\def\@MD@box#1{%
+%    \let\@MD@Brk\@MD@Typeset@Brk
+%    \tl_use:N \g__md_at_begin_code_block_tl
+%    \if@MD@allow@break#1\else\vbox{#1}\fi
+%}
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Main Implementation
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Make ` active.
-\char_set_catcode_active:n { \c__md_backquote_int }
+%% Make ` active at the start of the document.
+\AtBeginDocument {
+    \char_set_catcode_active:n { \c__md_backquote_int }
+    \char_gset_active_eq:NN \` \__md_single_backquote:w
+}
 
-\char_gset_active_eq:NN ` \__md_single_backquote:w
+%% The character ^^P (ASCII 0x10, ‘data link escape’) is used instead of \ as the command escape
+%% character; if for some ungodly reason, you find yourself having to use this character in your
+%% document, then please feel free to submit a pull request to change this.
+\char_set_catcode_escape:N \^^P
+
+%% Special characters.
+\cs_generate_variant:Nn \seq_const_from_clist:Nn { Nx }
+\seq_const_from_clist:Nx \c__md_special_chars_seq {
+    35,  %% #
+    36,  %% $
+    37,  %% %
+    38,  %% &
+    92,  %% \
+    94,  %% ^
+    95,  %% _
+    123, %% {
+    125, %% }
+    126  %% ~
+}
+
+%% This stores the old catcodes of special characters.
+\seq_new:N \g__md_old_catcodes_seq
+
+%% This function sets up the environment so be somewhat similar to how verbatim text is parsed.
+\cs_set:Nn \__md_setup_verbatim: {
+    %% Make whitespace characters active so they’re treated literally.
+    \char_set_catcode_active:N \^^M  %% Line break
+    \char_set_catcode_active:N \^^I  %% Tab
+    \char_set_catcode_active:N \^^20 %% Space
+
+    %% Convert all special other characters to ‘other’ so they’re not treated as commands or anything else.
+    %% Also store their old values in a sequence so we can reset them later.
+    \seq_gclear:N \g__md_old_catcodes_seq
+    \seq_map_inline:Nn \c__md_special_chars_seq {
+        \seq_gput_right:Nx \g__md_old_catcodes_seq { \char_value_catcode:n {##1} }
+        \char_set_catcode_other:n { ##1 }
+    }
+
+    %% Make backtick an ‘other’ character again.
+    \char_set_catcode_other:n { \c__md_backquote_int }
+}
+
+%% Set parsing back to normal.
+\cs_set:Nn \__md_undo_verbatim: {
+    \char_set_catcode_end_line:N \^^M  %% Line break
+    \char_set_catcode_space:N    \^^I  %% Tab
+    \char_set_catcode_space:N    \^^20 %% Space
+
+    %% Reset the catcodes of all special characters.
+    \seq_map_inline:Nn \c__md_special_chars_seq {
+        \seq_gpop_left:NN \g__md_old_catcodes_seq \l_tmpa_int
+        \char_set_catcode:nn { ##1 } { \l_tmpa_int }
+    }
+
+    %% Make backtick active again.
+    \char_set_catcode_active:n { \c__md_backquote_int }
+}
 
 %% Handle the first ` in a sequence of one or more `.
 \cs_set:Npn \__md_single_backquote:w {
-    \peek_meaning_remove:NTF ` { \__md_double_backquote:w } {
+    \peek_charcode_remove:NTF ` { \__md_double_backquote:w } {
         \__md_single_backquote_aux:w
     }
 }
@@ -129,88 +200,108 @@
     \ttfamily
 
     %% The next ` closes this group.
-    \char_gset_active_eq:NN ` \group_end:
+    \char_gset_active_eq:NN \` \group_end:
 }
 
 %% Handle the second ` in a sequence of two or more `.
 \cs_set:Npn \__md_double_backquote:w {
-    \peek_meaning_remove:NTF ` { \__md_double_backquote_aux:w } {
-        %%% TODO
+
+    \peek_charcode_remove:NTF ` { \__md_triple_backquote:w } {
+        %% Two backquotes just inserts a backquote.
+        \tl_use:N \c__md_backquote_tl
     }
 }
 
-%% Double `` starts code block if followed by another `, else inserts literal `.
-%% We still need to consume the second `, so expand a \@gobble first.
-\def\@MD@doublebackquote{
-    \expandafter\@ifnextchar
-    \expandafter`%
-    \expandafter{%
-    \expandafter\@MD@triplebackquote@start
-    \expandafter\@MD@triplebackquote
-    \expandafter}%
-    \expandafter\@MD@backquote
-    \@gobble
+%% Triple backquote starts a code block.
+\cs_set:Npn \__md_triple_backquote:w {
+    %% Remove skip and terminate the current paragraph.
+    \mode_if_vertical:TF {} { \unskip\par }
+
+    %% Insert code block skip.
+	\skip_vertical:N \g__md_block_skip_dim
+
+	%% Start new group for code block.
+	\group_begin:
+
+	%% Parse the code block.
+	\__md_setup_verbatim:
+	\__md_triple_backquote_aux:w
 }
 
-%% This macro is expanded before the code block is parsed.
-\def\@MD@triplebackquote@start{%
-	\ifvmode\else\unskip\par\fi
-	\vspace\MDCodeBlockSkipAmount
-	\begingroup
-    \ttfamily
-    \@MD@obeyspaces
-    \@MD@obeylines
-    \@MD@obeybraces
-    \@MD@obeyspecial
-    \parindent\z@\relax
-    \parskip\MDCodeBlockLineSkipAmount\relax
-    \let`\@MD@backquote
+%% This parses the code block as verbatim text.
+\cs_set:Npn \__md_triple_backquote_aux:w #1```{
+    %% Split code block into lines.
+    \regex_split:nnN { \^^M } { #1 } \l_tmpa_seq
+
+    %% Highlight the code if requested. Otherwise, just write it back out.
+    \bool_if:NTF \g__md_enable_highlighting_bool {
+        %% Make sure we can run shell commands.
+        \__md_check_shell:
+
+        %% Write it to an auxiliary file.
+        \iow_open:Nn \g_tmpa_iow { \tl_use:N \g__md_tmp_file_name_tl }
+        \seq_map_inline:Nn \l_tmpa_seq { \iow_now:Nn \g_tmpa_iow { ##1 } }
+        \iow_close:N \g_tmpa_iow
+    } {
+
+    }
+
+    %% TODO: Syntax highlighting + write the text back into the document.
+
+    %% Close the code block.
+    \group_end:
+
+    %% Reset parsing.
+    \__md_undo_verbatim:
+
+    %% Close the paragraph and insert skip.
+    \mode_if_vertical:TF {} { \unskip\par }
+    \skip_vertical:N \g__md_block_skip_dim
+
+    %% Next paragraph should not be indented.
+    \__md_next_par_unskip:
+
+    %% Reset per-code-block toggles.
+    \bool_gset_false:N \g__md_allow_break_bool
 }
 
-%% Box that wraps the code block to prevent it from being broken across pages.
-\long\def\@MD@box#1{%
-    \let\@MD@Brk\@MD@Typeset@Brk
-    \@MD@begin@codeblockhook
-    \if@MD@allow@break#1\else\vbox{#1}\fi
-}
-
-%% Triple ``` starts a code block. This macro is expanded after the code block
-%% has been parsed.
-\long\def\@MD@triplebackquote`[#1]#2```{%
-    %% Apply highlighting if we’re supposed to.
-    \if@MD@highlight
-        %% Write data to a file so we can run a command on it to apply syntax highlighting.
-        \@MD@tmpwrite{\noexpand\makeatletter #2 \noexpand\makeatother}%
-        %% Apply syntax highlighting to the code in \jobname.tmp
-        \immediate\write18{\MDHighlightEXE\space #1 \MDTempFileName\space > \MDTempFileName.1}%
-    %% Otherwise, just use the code.
-    \else
-        \@MD@box{#2}%
-    \fi
-
-    %% Close the group.
-    \endgroup
-
-    %% Include the formatted code. We need to apply almost the same formatting to it
-    %% that we used when the code was parsed.
-    \if@MD@highlight
-        \begingroup
-            \ttfamily
-            \parindent\z@\relax
-            \@MD@obeylines
-            \@MD@obeybraces
-            {\@MD@obeyspecial
-            \@MD@box{\input{\MDTempFileName.1}}}%
-        \endgroup
-    \fi
-
-    %% Close the environment.
-    \ifvmode\else\unskip\par\fi
-    \vspace\MDCodeBlockSkipAmount
-    \@MD@nextparunskip
-    \@MD@allow@breakfalse
-    \@MD@restorelines
-}
+%%% Triple ``` starts a code block. This macro is expanded after the code block
+%%% has been parsed.
+%\long\def\@MD@triplebackquote`[#1]#2```{%
+%    %% Apply highlighting if we’re supposed to.
+%    \if@MD@highlight
+%        %% Write data to a file so we can run a command on it to apply syntax highlighting.
+%        \@MD@tmpwrite{\noexpand\makeatletter #2 \noexpand\makeatother}%
+%        %% Apply syntax highlighting to the code in \jobname.tmp
+%        \immediate\write18{\MDHighlightEXE\space #1 \MDTempFileName\space > \MDTempFileName.1}%
+%    %% Otherwise, just use the code.
+%    \else
+%        \@MD@box{#2}%
+%    \fi
+%
+%    %% Close the group.
+%    \endgroup
+%
+%    %% Include the formatted code. We need to apply almost the same formatting to it
+%    %% that we used when the code was parsed.
+%    \if@MD@highlight
+%        \begingroup
+%            \ttfamily
+%            \parindent\z@\relax
+%            \@MD@obeylines
+%            \@MD@obeybraces
+%            {\@MD@obeyspecial
+%            \@MD@box{\input{\MDTempFileName.1}}}%
+%        \endgroup
+%    \fi
+%
+%    %% Close the environment.
+%    \ifvmode\else\unskip\par\fi
+%    \vspace\MDCodeBlockSkipAmount
+%    \@MD@nextparunskip
+%    \@MD@allow@breakfalse
+%    \@MD@restorelines
+%}
 
 %
 %%% This definition is used when emitting a code block to a file. This
