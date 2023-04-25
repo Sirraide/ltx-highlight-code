@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.22)
 project(ltx-highlight-code VERSION 0.1.0 LANGUAGES CXX)
 
 ## ============================================================================
@@ -99,7 +99,7 @@ endif()
 
 ## On Windows, don’t suggest the _s nonsense functions.
 if (WIN32)
-    target_compile_definitions(func PRIVATE
+    target_compile_definitions(options INTERFACE
         _CRT_SECURE_NO_WARNINGS
         _CRT_SECURE_NO_WARNINGS_GLOBALS
         _CRT_NONSTDC_NO_WARNINGS
