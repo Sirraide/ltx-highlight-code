@@ -1,139 +1,144 @@
-\NeedsTeXFormat{LaTeX2e}
-\ProvidesPackage{md-code-blocks}[2023/04/24 Package that provides Markdown code blocks and syntax highlighting]
+\NeedsTeXFormat{LaTeX3}
+\ProvidesExplPackage{md-code-blocks}{2023/04/25}{0.2}{Markdown code blocks and syntax highlighting}
 
-%% Sanity check.
-\RequirePackage{iftex}
-\ifxetex\else
-    \PackageError{md-code-blocks}{This package requires XeTeX.}
-\fi
-
-%% We need xcolor, and if we don’t include fontspec here, everything just... breaks horribly.
+\RequirePackage{l3keys2e}
 \RequirePackage{fontspec}
 \RequirePackage{xcolor}
-\RequirePackage{color}
 
-%% Allow disabling syntax highlighting.
-\newif\if@MD@highlight \@MD@highlighttrue
-\DeclareOption{nohighlighting}{\@MD@highlightfalse}
+%% Sanity check.
+\sys_if_engine_xetex:F {
+    \msg_fatal:nn { md-code-blocks } { This~package~requires~Xe(La)TeX }
+}
 
-\ProcessOptions\relax
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  API Functions
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\NewDocumentCommand \MDEnableHighlighting {} { \bool_gset_true:N \g__md_enable_highlighting_bool }
+\NewDocumentCommand \MDDisableHighlighting {} { \bool_gset_false:N \g__md_enable_highlighting_bool }
 
-%% Skip to use before and after code blocks. Can be redefined by the user.
-\let\MDCodeBlockSkipAmount\medskipamount
+\NewDocumentCommand \MDSetCodeBlockSkip {m} { \dim_gset:Nx \g__md_block_skip { #1 } }
+\NewDocumentCommand \MDSetCodeBlockEmptyLineSkip {m} { \dim_gset:Nx \g__md_lempty_skip { #1 } }
+\NewDocumentCommand \MDSetCodeBlockLineSkip {m} { \dim_gset:Nx \g__md_block_lskip { #1 } }
+\NewDocumentCommand \MDSetTempFileName {m} { \tl_gset:Nx \g__md_tmp_file_name { #1 } }
+\NewDocumentCommand \MDSetHighlightExe {m} { \tl_gset:Nx \g__md_highlight_exe { #1 } }
 
-%% Skip to use for \parskip in code blocks.
-\let\MDCodeBlockLineSkipAmount\smallskipamount
+\NewDocumentCommand \MDAtBeginCodeBlock {m} { \tl_gput_right:Nn \g__md_at_begin_code_block { #1 } }
+\NewDocumentCommand \MDAllowBreak {} { \bool_gset_true:N \g__md_allow_break_bool }
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Constants
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\int_const:Nx \c__md_backquote_int { 96 }
+\tl_const:Nx \c__md_backquote { \char_generate:nn { \c__md_backquote_int } { 12 } }
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  User Configurable Options
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Whether to enable highlighting.
+\bool_new:N \g__md_enable_highlighting_bool \bool_gset_true:N \g__md_enable_highlighting_bool
+
+%% Skip to use before and after code blocks.
+\dim_new:N \g__md_block_skip \dim_gset:Nn \g__md_block_skip { \medskipamount }
 
 %% Skip to use for empty lines in code blocks.
-\let\MDEmptyLineSkipAmount\baselineskip
+\dim_new:N \g__md_lempty_skip \dim_gset:Nn \g__md_lempty_skip { \baselineskip }
+
+%% Skip to use for \parskip in code blocks.
+\dim_new:N \g__md_block_lskip \dim_gset:Nn \g__md_block_lskip { \smallskipamount }
 
 %% Name of the temporary output file.
-\def\MDTempFileName{temporary.tex}
+\tl_new:N \g__md_tmp_file_name \tl_gset:Nn \g__md_tmp_file_name { temporary.tex }
 
 %% Name of the executable to use for syntax highlighting.
-\def\MDHighlightEXE{ltx-highlight-code}
+\tl_new:N \g__md_highlight_exe \tl_gset:Nn \g__md_highlight_exe { ltx-highlight-code }
 
-%% Run code at the beginning of a code block.
-\def\MDAtBeginCodeBlock{\g@addto@macro\@MD@begin@codeblockhook}
-\let\@MD@begin@codeblockhook\@empty
+%% Code to run code at the beginning of a code block.
+\tl_new:N \g__md_at_begin_code_block
 
 %% Switch to allow page breaks in code blocks.
-\def\MDAllowBreak{\@MD@allow@breaktrue}
-\newif\if@MD@allow@break \@MD@allow@breakfalse
+\bool_new:N \g__md_allow_break_bool
 
-%% Typeset Colours. Uses of this command can’t use {} since they
-%% are interpreted literally.
-\def\@MD@Color#1\@MD@#2\@MD@#3\@MD@{\textcolor{MD#1#2Color}{#3}}
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Colour Handling
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Style name.
+\cs_set:Npn \__md_style_name:nn #1#2 { g__md_ #1 _ #2 _style }
 
-%% Typeset line comments.
-\protected\def\@MD@LineComment@Start#1\@MD@{%
-    \begingroup\color{MD#1CommentColor}%
-    \def\@MD@Color##1\@MD@##2\@MD@##3\@MD@{##3}%
-}
-\protected\def\@MD@LineComment@End{\endgroup}
-
-%% Typeset strings.
-\protected\def\@MD@String@Start#1\@MD@{%
-    \begingroup\color{MD#1StringColor}%
-    \def\@MD@Color##1\@MD@##2\@MD@##3\@MD@{##3}%
-}
-\protected\def\@MD@String@End{\endgroup}
-
-%% Typeset Escape sequences.
-\protected\def\@MD@Escape@Start#1\@MD@#2\@MD@Escape@End{%
-    \textcolor{MD#1EscapeColor}{#2}%
+%% Set a style.
+\cs_set:Npn \__md_set_style #1#2#3 {
+    \cs_gset:cn { \__md_style_name:nn {#1}{#2} } { #3 }
 }
 
-%% Temporary output file.
-\newwrite\@MD@tmpout
-
-%% Write to tempfile.
-\long\def\@MD@tmpwrite#1{%
-    \immediate\openout\@MD@tmpout=\MDTempFileName%
-    \immediate\write\@MD@tmpout{#1}%
-    \immediate\closeout\@MD@tmpout
+%% Define a default style.
+\cs_set:Npn \__md_set_default_style:nn #1#2 {
+    \__md_set_style { Default } { #1 } { #2 }
 }
 
-%% Define this now because we won’t be able to use \char` later.
-\let\@MD@backquote`
-\let\MDTextBackquote\@MD@backquote
+%% This function switches to a colour and style.
+\cs_set:Npn \__md_handle_style:nn #1#2 {
+    %% New group so we can have nested styles.
+    \group_begin:
 
-%% Save this just in case.
-\let\@MD@obeyspaces\@vobeyspaces
+    %% If the colour is defined (e.g. g__md_C++_Keyword_style), use it.
+    \cs_if_exist_use:cTF { \__md_style_name {#1}{#2} } { } {
+        %% Otherwise, use the default style if it exists.
+        \cs_if_exist_use:cTF { \__md_style_name {Default}{#2} } {} {
+            %% If it doesn’t, do nothing, but issue a warning.
+            \msg_warning:nn { md-code-blocks } { Unknown~style~`#2'~for~`#1' }
+        }
+    }
+}
+
+%% This function closes a style block.
+\cs_set:Nn \__md_close_style: { \group_end: }
+
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Utils
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Check that we can run shell commands.
+\cs_set:Nn \__md_check_shell: {
+    \sys_if_shell_unrestricted:TF {} {
+        \msg_fatal:nn { md-code-blocks } { This~package~requires~shell~access.~Please~add~the~`--enable-write18'~flag~to~your~LaTeX~command. }
+    }
+}
 
 %% Remove first skip before next paragraph.
-\def\@MD@nextparunskip{\everypar{\setbox\z@\lastbox\everypar{}}}
-
-%% This definition is used when emitting a code block to a file. This
-%% is just a dummy definition that never gets expanded.
-\protected\def\@MD@Brk{\relax}
-
-%% Actual definition of \@MD@Brk. This is basically just \par, but adjusted
-%% so that we actually insert empty lines if there are multiple consecutive
-%% line breaks.
-\def\@MD@Typeset@Brk{\@ifnextchar \@MD@Brk {\vspace\MDEmptyLineSkipAmount}\par}
-
-%% Make line breaks active.
-\def\@MD@restorelines{\catcode`\^^M=5}
-{
-    \catcode`\^^M=\active %
-    \gdef\@MD@obeylines{\catcode`\^^M\active \def^^M{%
-        \@MD@Brk%
-    }}%
+\cs_set:Nn \__md_next_par_unskip {
+    \makeatletter
+        \everypar { \setbox\z@\lastbox \everypar{} }
+    \makeatother
 }
 
-%% Treat {} literally.
-\def\@MD@obeybraces{
-    \catcode`{=12
-    \catcode`}=12
-}
-
-%% Treat special characters literally.
-\def\@MD@obeyspecial{
-    \catcode`\#=12\relax
-    \catcode`\%=12\relax
-    \protected\def\\{\textbackslash}%
-}
-
-%% Currently, there is no way of getting this to work in e.g. footnotes w/o doing this, sadly.
-\AtBeginDocument{
-    \catcode`\_=\active\relax
-    \protected\def\_{\textunderscore\allowbreak}%
-    \catcode`~=12\relax
-    \catcode`\^=11\relax
-    \catcode`\&=11\relax
-}
-
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%  Main Implementation
+%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Make ` active.
-\catcode``=\active
+\char_set_catcode_active:n { \c__md_backquote_int }
 
-%% `   starts tt mode
-%% ``  literal `
-%% ``` starts code block
-\protected\def`{\@ifnextchar`\@MD@doublebackquote\@MD@singlebackquote}
+\char_gset_active_eq:NN ` \__md_single_backquote:w
 
-%% Single ` starts tt mode to be closed by next `.
-\def\@MD@singlebackquote{\begingroup\ttfamily\let`\endgroup}
+%% Handle the first ` in a sequence of one or more `.
+\cs_set:Npn \__md_single_backquote:w {
+    \peek_meaning_remove:NTF ` { \__md_double_backquote:w } {
+        \__md_single_backquote_aux:w
+    }
+}
+
+%% Handle a single `.
+\cs_set:Npn \__md_single_backquote_aux:w {
+    \group_begin:
+    \ttfamily
+
+    %% The next ` closes this group.
+    \char_gset_active_eq:NN ` \group_end:
+}
+
+%% Handle the second ` in a sequence of two or more `.
+\cs_set:Npn \__md_double_backquote:w {
+    \peek_meaning_remove:NTF ` { \__md_double_backquote_aux:w } {
+        %%% TODO
+    }
+}
 
 %% Double `` starts code block if followed by another `, else inserts literal `.
 %% We still need to consume the second `, so expand a \@gobble first.
@@ -207,3 +212,44 @@
     \@MD@allow@breakfalse
     \@MD@restorelines
 }
+
+%
+%%% This definition is used when emitting a code block to a file. This
+%%% is just a dummy definition that never gets expanded.
+%\protected\def\@MD@Brk{\relax}
+%
+%%% Actual definition of \@MD@Brk. This is basically just \par, but adjusted
+%%% so that we actually insert empty lines if there are multiple consecutive
+%%% line breaks.
+%\def\@MD@Typeset@Brk{\@ifnextchar \@MD@Brk {\vspace\MDEmptyLineSkipAmount}\par}
+%
+%%% Make line breaks active.
+%\def\@MD@restorelines{\catcode`\^^M=5}
+%{
+%    \catcode`\^^M=\active %
+%    \gdef\@MD@obeylines{\catcode`\^^M\active \def^^M{%
+%        \@MD@Brk%
+%    }}%
+%}
+%
+%%% Treat {} literally.
+%\def\@MD@obeybraces{
+%    \catcode`{=12
+%    \catcode`}=12
+%}
+%
+%%% Treat special characters literally.
+%\def\@MD@obeyspecial{
+%    \catcode`\#=12\relax
+%    \catcode`\%=12\relax
+%    \protected\def\\{\textbackslash}%
+%}
+%
+%%% Currently, there is no way of getting this to work in e.g. footnotes w/o doing this, sadly.
+%\AtBeginDocument{
+%    \catcode`\_=\active\relax
+%    \protected\def\_{\textunderscore\allowbreak}%
+%    \catcode`~=12\relax
+%    \catcode`\^=11\relax
+%    \catcode`\&=11\relax
+%}
