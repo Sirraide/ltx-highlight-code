@@ -276,17 +276,30 @@
 %% Handle the first ` in a sequence of one or more `.
 \cs_set:Npn \__md_single_backquote:w {
     \peek_charcode_remove:NTF ` { \__md_double_backquote:w } {
+        %% Start a new group and set the font.
+        \group_begin:
+        \ttfamily
+
+        %% Treat special characters normally and activate user-defined special characters.
+        \__md_setup_verbatim:
+        \__md_setup_read_in:
+
+        %% Parse the rest of the inline code.
         \__md_single_backquote_aux:w
     }
 }
 
 %% Handle a single `.
-\cs_set:Npn \__md_single_backquote_aux:w {
-    \group_begin:
-    \ttfamily
+\cs_set:Npn \__md_single_backquote_aux:w #1` {
+    %% Insert the group.
+    #1
 
-    %% The next ` closes this group.
-    \char_gset_active_eq:NN \` \group_end:
+    %% Undo everything.
+    \__md_undo_read_in:
+    \__md_undo_verbatim:
+
+    %% Close the group.
+    \group_end:
 }
 
 %% Handle the second ` in a sequence of two or more `.
