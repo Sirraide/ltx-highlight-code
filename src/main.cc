@@ -143,6 +143,7 @@ struct highlight_params {
     std::string_view escape_sequences;
     std::string_view line_comment_prefix;
     std::span<const std::string_view> keywords;
+    std::span<const std::string_view> types;
 };
 
 /// Highlight code in a string.
@@ -160,6 +161,7 @@ void highlight(std::string& text, const highlight_params& params) {
     for (usz i = 0; i < operators.size(); ++i) tr.insert(operators.substr(i, 1), kind::operator_);
     for (auto c : params.string_delimiters) tr.insert(std::string_view(&c, 1), kind::string);
     for (const auto& e : escape_sequences) tr.insert(e, kind::escape_sequence);
+    for (const auto& t : params.types) tr.insert(t, kind::type);
     tr.insert("::", kind::operator_);
     tr.insert("T", kind::type);
     tr.insert(params.line_comment_prefix, kind::comment);
