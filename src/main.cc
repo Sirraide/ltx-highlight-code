@@ -382,7 +382,6 @@ void highlight_go(std::string& text) {
         "case",
         "defer",
         "go",
-        "map",
         "struct",
         "chan",
         "else",
@@ -399,6 +398,13 @@ void highlight_go(std::string& text) {
         "import",
         "return",
         "var",
+        "true",
+        "false",
+        "iota",
+        "nil",
+    };
+
+    static constexpr std::string_view types[]{
         "bool",
         "byte",
         "complex64",
@@ -411,18 +417,16 @@ void highlight_go(std::string& text) {
         "int16",
         "int32",
         "int64",
+        "map",
         "rune",
         "string",
+        "T",
         "uint",
         "uint8",
         "uint16",
         "uint32",
         "uint64",
         "uintptr",
-        "true",
-        "false",
-        "iota",
-        "nil",
     };
 
     highlight(
@@ -433,6 +437,7 @@ void highlight_go(std::string& text) {
             .escape_sequences = "'\"\\nrt",
             .line_comment_prefix = "//",
             .keywords = keywords,
+            .types = types,
         }
     );
 }
