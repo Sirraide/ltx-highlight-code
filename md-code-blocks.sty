@@ -262,6 +262,15 @@
     }
 }
 
+%% Read a file back in.
+\cs_set:Npn \__md_read_in_file:n #1 {
+    \__md_setup_read_in:
+    \ior_open:Nn \g_tmpa_ior { #1 }
+    \ior_map_inline:Nn \g_tmpa_ior { \__md_read_in_line:n {##1} }
+    \ior_close:N \g_tmpa_ior
+    \__md_undo_read_in:
+}
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Main Implementation
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -331,16 +340,8 @@
 
         %% Read the highlighted text back in.
         %% Note: \__md_setup_verbatim is still in effect.
-        \__md_setup_read_in:
-        \ior_open:Nn \g_tmpa_ior { \tl_use:N \g__md_tmp_file_name_tl }
-        \ior_map_inline:Nn \g_tmpa_ior { \__md_read_in_line:n {##1} }
-        \ior_close:N \g_tmpa_ior
-        \__md_undo_read_in:
-    } {
-
-    }
-
-    %% TODO: Syntax highlighting + write the text back into the document.
+        \__md_read_in_file:n { \g__md_tmp_file_name_tl .1 }
+    } { \__md_read_in_file:n { \g__md_tmp_file_name_tl } }
 
     %% Close the code block.
     \group_end:
