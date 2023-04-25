@@ -173,11 +173,10 @@
 \cs_set:Nn \__md_force_space: { \leavevmode\nobreak\space }
 
 %% Wrap the contents of a code block in a vbox to prevent page breaks.
-%\long\def\@MD@box#1{%
-%    \let\@MD@Brk\@MD@Typeset@Brk
-%    \tl_use:N \g__md_at_begin_code_block_tl
-%    \if@MD@allow@break#1\else\vbox{#1}\fi
-%}
+\cs_set:Npn \__md_in_vbox:n #1 {
+    \tl_use:N \g__md_at_begin_code_block_tl
+    \bool_if:NTF \g__md_allow_break_bool { \vbox{#1} } { #1 }
+}
 
 %% This function sets up the environment so be somewhat similar to how verbatim text is parsed.
 \cs_set:Nn \__md_setup_verbatim: {
@@ -340,8 +339,10 @@
 
         %% Read the highlighted text back in.
         %% Note: \__md_setup_verbatim is still in effect.
-        \__md_read_in_file:n { \g__md_tmp_file_name_tl .1 }
-    } { \__md_read_in_file:n { \g__md_tmp_file_name_tl } }
+        \__md_in_vbox:n { \__md_read_in_file:n { \g__md_tmp_file_name_tl .1 } }
+    } {
+        \__md_in_vbox:n { \__md_read_in_file:n { \g__md_tmp_file_name_tl } }
+    }
 
     %% Close the code block.
     \group_end:
@@ -359,82 +360,3 @@
     %% Reset per-code-block toggles.
     \bool_gset_false:N \g__md_allow_break_bool
 }
-
-%%% Triple ``` starts a code block. This macro is expanded after the code block
-%%% has been parsed.
-%\long\def\@MD@triplebackquote`[#1]#2```{%
-%    %% Apply highlighting if we’re supposed to.
-%    \if@MD@highlight
-%        %% Write data to a file so we can run a command on it to apply syntax highlighting.
-%        \@MD@tmpwrite{\noexpand\makeatletter #2 \noexpand\makeatother}%
-%        %% Apply syntax highlighting to the code in \jobname.tmp
-%        \immediate\write18{\MDHighlightEXE\space #1 \MDTempFileName\space > \MDTempFileName.1}%
-%    %% Otherwise, just use the code.
-%    \else
-%        \@MD@box{#2}%
-%    \fi
-%
-%    %% Close the group.
-%    \endgroup
-%
-%    %% Include the formatted code. We need to apply almost the same formatting to it
-%    %% that we used when the code was parsed.
-%    \if@MD@highlight
-%        \begingroup
-%            \ttfamily
-%            \parindent\z@\relax
-%            \@MD@obeylines
-%            \@MD@obeybraces
-%            {\@MD@obeyspecial
-%            \@MD@box{\input{\MDTempFileName.1}}}%
-%        \endgroup
-%    \fi
-%
-%    %% Close the environment.
-%    \ifvmode\else\unskip\par\fi
-%    \vspace\MDCodeBlockSkipAmount
-%    \@MD@nextparunskip
-%    \@MD@allow@breakfalse
-%    \@MD@restorelines
-%}
-
-%
-%%% This definition is used when emitting a code block to a file. This
-%%% is just a dummy definition that never gets expanded.
-%\protected\def\@MD@Brk{\relax}
-%
-%%% Actual definition of \@MD@Brk. This is basically just \par, but adjusted
-%%% so that we actually insert empty lines if there are multiple consecutive
-%%% line breaks.
-%\def\@MD@Typeset@Brk{\@ifnextchar \@MD@Brk {\vspace\MDEmptyLineSkipAmount}\par}
-%
-%%% Make line breaks active.
-%\def\@MD@restorelines{\catcode`\^^M=5}
-%{
-%    \catcode`\^^M=\active %
-%    \gdef\@MD@obeylines{\catcode`\^^M\active \def^^M{%
-%        \@MD@Brk%
-%    }}%
-%}
-%
-%%% Treat {} literally.
-%\def\@MD@obeybraces{
-%    \catcode`{=12
-%    \catcode`}=12
-%}
-%
-%%% Treat special characters literally.
-%\def\@MD@obeyspecial{
-%    \catcode`\#=12\relax
-%    \catcode`\%=12\relax
-%    \protected\def\\{\textbackslash}%
-%}
-%
-%%% Currently, there is no way of getting this to work in e.g. footnotes w/o doing this, sadly.
-%\AtBeginDocument{
-%    \catcode`\_=\active\relax
-%    \protected\def\_{\textunderscore\allowbreak}%
-%    \catcode`~=12\relax
-%    \catcode`\^=11\relax
-%    \catcode`\&=11\relax
-%}
