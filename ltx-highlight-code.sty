@@ -26,6 +26,10 @@
 \NewDocumentCommand \MDAtBeginCodeBlock {m} { \tl_gput_right:Nn \g__md_at_begin_code_block_tl { #1 } }
 \NewDocumentCommand \MDAllowBreak {} { \bool_gset_true:N \g__md_allow_break_bool }
 
+%% For preparing and inserting inline code.
+\def\MDPrepareCode{ \setbox\g__md_inline_code_box=\hbox }
+\NewDocumentCommand \MDInsertCode{} { \box_use_drop:N \g__md_inline_code_box }
+
 %% Helpers to allow setting custom escape, group begin, and group end chars.
 \NewDocumentCommand \MDSetEscapeCharacter {m} { \__md_read_in_as_catcode:NN #1 0 }
 \NewDocumentCommand \MDSetGroupBeginCharacter {m} { \__md_read_in_as_catcode:NN #1 1 }
@@ -92,6 +96,9 @@
 
 %% Second character-to-catcode dictionary for resetting.
 \prop_new:N \g__md_char_to_catcode_reset_prop
+
+%% Box for preparing inline code.
+\box_new:N \g__md_inline_code_box
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Colour Handling
@@ -274,7 +281,7 @@
 %%  Main Implementation
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Handle the first ` in a sequence of one or more `.
-\cs_set:Npn \__md_single_backquote:w {
+\cs_set_protected:Npn \__md_single_backquote:w {
     \peek_charcode_remove:NTF ` { \__md_double_backquote:w } {
         %% Start a new group and set the font.
         \group_begin:
@@ -290,7 +297,7 @@
 }
 
 %% Handle a single `.
-\cs_set:Npn \__md_single_backquote_aux:w #1` {
+\cs_set_protected:Npn \__md_single_backquote_aux:w #1` {
     %% Insert the group.
     #1
 
