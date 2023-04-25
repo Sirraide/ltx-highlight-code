@@ -467,6 +467,43 @@ void highlight_c(std::string& text) {
     );
 }
 
+void highlight_intercept(std::string& text) {
+    static constexpr std::string_view keywords[]{
+        "as",
+        "else",
+        "for",
+        "if",
+        "type",
+        "while",
+    };
+
+    static constexpr std::string_view types[]{
+        "byte",
+        "integer",
+        "s8",
+        "s16",
+        "s32",
+        "s64",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "void",
+    };
+
+    highlight(
+        text,
+        highlight_params{
+            .lang_name = "int",
+            .string_delimiters = "'\"",
+            .escape_sequences = "'\"\\nrtfvaeb",
+            .line_comment_prefix = ";;",
+            .keywords = keywords,
+            .types = types,
+        }
+    );
+}
+
 /// The only thing I can stand less than Go is Go without syntax highlighting.
 void highlight_go(std::string& text) {
     static constexpr std::string_view keywords[]{
@@ -547,6 +584,7 @@ int main(int argc, char** argv) {
     if (lang == "C++") highlight_cxx(text);
     else if (lang == "Go") highlight_go(text);
     else if (lang == "C") highlight_c(text);
+    else if (lang == "int") highlight_intercept(text);
     else if (lang == "Text") {
     } else die("Unknown language '{}'", lang);
 
