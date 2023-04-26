@@ -12,6 +12,11 @@ using options = clopts< // clang-format off
     help<>
 >; // clang-format on
 
+/// Characters used by the package.
+#define ESC           "\x10"
+#define BEG           "\x02"
+#define END           "\x03"
+
 enum struct kind {
     operator_,
     keyword,
@@ -127,7 +132,7 @@ struct trie {
 };
 
 std::string colour_string_prefix(std::string_view langname, std::string_view colour) {
-    return fmt::format(R"(\@MD@Color {}\@MD@ {}\@MD@ )", langname, colour);
+    return fmt::format(ESC "@@MDStyle" BEG "{}" END BEG "{}" END BEG, langname, colour);
 }
 
 /// Check if this character is valid in an identifier. This is so we highlight
@@ -177,12 +182,12 @@ void highlight(std::string& text, const highlight_params& params) {
     }
 
     /// Macro call to insert for keywords/operators.
-    auto kwstr = colour_string_prefix(params.lang_name, "Keyword");
-    auto opstr = colour_string_prefix(params.lang_name, "Operator");
-    auto tystr = colour_string_prefix(params.lang_name, "Type");
-    auto escape_start = fmt::format("\\@MD@Escape@Start {}\\@MD@ ", params.lang_name);
-    auto comment_start = fmt::format("\\@MD@LineComment@Start {}\\@MD@ ", params.lang_name);
-    auto string_start = fmt::format("\\@MD@String@Start {}\\@MD@ ", params.lang_name);
+    auto typeset_kw = colour_string_prefix(params.lang_name, "Keyword");
+    auto typeset_op = colour_string_prefix(params.lang_name, "Operator");
+    auto typeset_ty = colour_string_prefix(params.lang_name, "Type");
+    auto typeset_esc = colour_string_prefix(params.lang_name, "Escape");
+    auto typeset_com = colour_string_prefix(params.lang_name, "Comment");
+    auto typeset_str = colour_string_prefix(params.lang_name, "String");
 
     /// Whether we’re in a string.
     usz string_end = std::string::npos;
@@ -197,8 +202,8 @@ void highlight(std::string& text, const highlight_params& params) {
         /// Mark the start and end of strings.
         if (m.k == kind::string) {
             if (in_string()) {
-                text.insert(string_end, "\\@MD@String@End");
-                text.insert(m.pos, string_start);
+                text.insert(string_end, END);
+                text.insert(m.pos, typeset_str);
                 string_end = std::string::npos;
             } else string_end = m.pos + m.len;
         }
@@ -206,11 +211,10 @@ void highlight(std::string& text, const highlight_params& params) {
         /// Skip anything other than escape sequences if we’re in as string.
         if (in_string()) {
             if (m.k == kind::escape_sequence) {
-                static constexpr std::string_view escape_end = "\\@MD@Escape@End ";
                 fmt::print(stderr , "Escape sequence: \"{}\"\n", text.substr(m.pos, m.len));
-                text.insert(m.pos + m.len, escape_end);
-                text.insert(m.pos, escape_start);
-                string_end += escape_end.size() + escape_start.size();
+                text.insert(m.pos + m.len, END);
+                text.insert(m.pos, typeset_esc);
+                string_end += typeset_esc.size() + sizeof(END) - 1;
             }
             continue;
         }
@@ -221,13 +225,12 @@ void highlight(std::string& text, const highlight_params& params) {
         /// If it’s a comment, colour the rest of the line.
         if (m.k == kind::comment) {
             /// Find the end of the line.
-            usz end = text.find("\\@MD@Brk", m.pos + m.len);
-            if (end == std::string::npos) end = text.find("\\makeatother");
+            usz end = text.find('\n', m.pos + m.len);
             if (end == std::string::npos) end = text.size();
 
             /// Colour the line.
-            text.insert(end, "\\@MD@LineComment@End ");
-            text.insert(m.pos, comment_start);
+            text.insert(end, END);
+            text.insert(m.pos, typeset_com);
             continue;
         }
 
@@ -235,11 +238,11 @@ void highlight(std::string& text, const highlight_params& params) {
         if ((m.k == kind::keyword or m.k == kind::type) and m.pos > 0 and iscontinue(text[m.pos - 1])) continue;
 
         /// Otherwise, colour the match appropriately.
-        text.insert(m.pos + m.len, "\\@MD@ ");
+        text.insert(m.pos + m.len, END);
         switch (m.k) {
-            case kind::operator_: text.insert(m.pos, opstr); break;
-            case kind::keyword: text.insert(m.pos, kwstr); break;
-            case kind::type: text.insert(m.pos, tystr); break;
+            case kind::operator_: text.insert(m.pos, typeset_op); break;
+            case kind::keyword: text.insert(m.pos, typeset_kw); break;
+            case kind::type: text.insert(m.pos, typeset_ty); break;
             default: std::unreachable();
         }
     }
@@ -576,10 +579,17 @@ void highlight_go(std::string& text) {
     );
 }
 
+void trim(std::string& s) {
+    while (not s.empty() && isspace(s.back())) s.pop_back();
+    while (not s.empty() && isspace(s.front())) s.erase(s.begin());
+}
+
 int main(int argc, char** argv) {
     options::parse(argc, argv);
     std::string_view lang = *options::get<"language">();
     std::string text = options::get<"input">()->contents;
+
+    trim(text);
 
     if (lang == "C++") highlight_cxx(text);
     else if (lang == "Go") highlight_go(text);
