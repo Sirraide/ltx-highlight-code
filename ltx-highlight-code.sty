@@ -4,6 +4,7 @@
 
 \RequirePackage{fontspec}
 \RequirePackage{xcolor}
+\RequirePackage{color}
 
 %% Sanity check.
 \sys_if_engine_xetex:F {
@@ -29,6 +30,15 @@
 %% For preparing and inserting inline code.
 \def\MDPrepareCode{ \setbox\g__md_inline_code_box=\hbox }
 \NewDocumentCommand \MDInsertCode{} { \box_use_drop:N \g__md_inline_code_box }
+
+%% Define a style for a token type for a specific language (langname can also be ‘Default’).
+\NewDocumentCommand \MDDefineStyle{mmm} { \__md_set_style:nnn { #1 } { #2 } { #3 } }
+
+%% Define a style that just sets a colour. The 2 last arguments are passed to xcolor’s \definecolor.
+\NewDocumentCommand \MDDefineColorStyle {mmmm} {
+    \definecolor {g__md_ #1 _ #2 _ color} { #3 } { #4 }
+    \__md_set_style:nnn { #1 } { #2 } { \color {g__md_ #1 _ #2 _ color} }
+}
 
 %% Helpers to allow setting custom escape, group begin, and group end chars.
 \NewDocumentCommand \MDSetEscapeCharacter {m} { \__md_read_in_as_catcode:NN #1 0 }
@@ -100,11 +110,14 @@
 %% Box for preparing inline code.
 \box_new:N \g__md_inline_code_box
 
+%% Temporary message.
+\msg_new:nnn { ltx-highlight-code } { unknown style } { }
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Colour Handling
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Style name.
-\cs_set:Npn \__md_style_name:nn #1#2 { g__md_ #1 _ #2 _style }
+\cs_set:Npn \__md_style_name:nn #1#2 { g__md_ #1 _ #2 _style: }
 
 %% Set a style.
 \cs_set:Npn \__md_set_style:nnn #1#2#3 {
@@ -126,13 +139,21 @@
         %% Otherwise, use the default style if it exists.
         \cs_if_exist_use:cTF { \__md_style_name:nn {Default}{#2} } {} {
             %% If it doesn’t, do nothing, but issue a warning.
-            \msg_warning:nn { ltx-highlight-code } { Unknown~style~`#2'~for~`#1' }
+            \msg_set:nnn { ltx-highlight-code } { unknown style } { Unknown~style~`#2'~for~`#1' }
+            \msg_warning:nn { ltx-highlight-code } { unknown style }
         }
     }
 }
 
 %% This function closes a style block.
 \cs_set:Nn \__md_close_style: { \group_end: }
+
+%% This command is inserted by the syntax highlighter.
+\def\@@MDStyle#1#2#3{
+    \__md_handle_style:nn { #1 }{ #2 }
+    #3
+    \__md_close_style:
+}
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Utils
@@ -200,6 +221,11 @@
         \char_set_catcode_other:n { ##1 }
     }
 
+    %%  @ should be a letter.
+    \seq_gput_right:Nx \g__md_old_catcodes_seq { \char_value_catcode:n {64} }
+    \char_set_catcode_letter:n { 64 }
+
+
     %% Make backtick an ‘other’ character again.
     \char_set_catcode_other:n { \c__md_backquote_int }
 }
@@ -215,6 +241,10 @@
         \seq_gpop_left:NN \g__md_old_catcodes_seq \l_tmpa_int
         \char_set_catcode:nn { ##1 } { \l_tmpa_int }
     }
+
+    %% Reset @.
+    \seq_gpop_left:NN \g__md_old_catcodes_seq \l_tmpa_int
+    \char_set_catcode:nn { 64 } { \l_tmpa_int }
 
     %% Make backtick active again.
     \char_set_catcode_active:n { \c__md_backquote_int }
