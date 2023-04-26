@@ -3,6 +3,8 @@
 
 #include <fmt/format.h>
 
+using namespace std::literals;
+
 using u8 = uint8_t;
 using u16 = uint16_t;
 using u32 = uint32_t;
@@ -31,5 +33,22 @@ template <typename ...arguments>
     fmt::print(stderr, "\n");
     std::exit(1);
 }
+
+#define defer auto CAT($$defer_type_, __COUNTER__) = $$defer_helper{} & [&]
+
+template <typename T>
+struct $$defer_type {
+    T func;
+    ~$$defer_type() {
+        func();
+    }
+};
+
+struct $$defer_helper {
+    template <typename T>
+    $$defer_type<T> operator&(T&& func) {
+        return {std::forward<T>(func)};
+    }
+};
 
 #endif // LTS_HIGHLIGHT_CODE_UTILS_HH

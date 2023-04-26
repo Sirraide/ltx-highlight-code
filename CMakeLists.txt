@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(ltx-highlight-code VERSION 0.1.0 LANGUAGES CXX)
+project(ltx-highlight-code VERSION 0.1.0 LANGUAGES CXX C)
 
 ## ============================================================================
 ##  Global CMake Variables.
@@ -172,7 +172,18 @@ if (EXISTS ${PROJECT_SOURCE_DIR}/include)
 endif()
 
 ## Add the executable.
-add_executable(ltx-highlight-code ${sources})
+add_executable(ltx-highlight-code
+    ${sources}
+
+    ## Tree-sitter parsers.
+    libs/tree-sitter-cpp/src/parser.c
+    libs/tree-sitter-cpp/src/scanner.cc
+)
+
+## Include dirs for tree sitter parsers.
+target_include_directories(ltx-highlight-code PRIVATE
+    libs/tree-sitter-cpp/src
+)
 
 ## Apply our options.
-target_link_libraries(ltx-highlight-code PRIVATE options)
+target_link_libraries(ltx-highlight-code PRIVATE options tree-sitter)

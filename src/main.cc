@@ -4,18 +4,30 @@
 #include <utility>
 #include <utils.hh>
 
+#if defined(__has_include)
+#    if __has_include(<tree_sitter/api.h>)
+#        define HAVE_TREE_SITTER
+#        include <tree_sitter/api.h>
+
+extern "C" {
+extern const TSLanguage *tree_sitter_cpp(void);
+}
+#    endif
+#endif
+
 using namespace command_line_options;
 using options = clopts< // clang-format off
     positional<"language", "The programming language to highlight">,
     positional<"input", "The input file to highlight", file<std::string>>,
     flag<"--debug", "Debug output">,
+    flag<"--tree-sitter", "Use tree-sitter to perform syntax highlighting">,
     help<>
 >; // clang-format on
 
 /// Characters used by the package.
-#define ESC           "\x10"
-#define BEG           "\x02"
-#define END           "\x03"
+#define ESC "\x10"
+#define BEG "\x02"
+#define END "\x03"
 
 enum struct kind {
     operator_,
@@ -211,7 +223,7 @@ void highlight(std::string& text, const highlight_params& params) {
         /// Skip anything other than escape sequences if we’re in as string.
         if (in_string()) {
             if (m.k == kind::escape_sequence) {
-                fmt::print(stderr , "Escape sequence: \"{}\"\n", text.substr(m.pos, m.len));
+                fmt::print(stderr, "Escape sequence: \"{}\"\n", text.substr(m.pos, m.len));
                 text.insert(m.pos + m.len, END);
                 text.insert(m.pos, typeset_esc);
                 string_end += typeset_esc.size() + sizeof(END) - 1;
@@ -590,13 +602,79 @@ int main(int argc, char** argv) {
     std::string text = options::get<"input">()->contents;
 
     trim(text);
+    if (lang == "Text") goto echo;
 
-    if (lang == "C++") highlight_cxx(text);
-    else if (lang == "Go") highlight_go(text);
-    else if (lang == "C") highlight_c(text);
-    else if (lang == "int") highlight_intercept(text);
-    else if (lang == "Text") {
-    } else die("Unknown language '{}'", lang);
+    /// Use tree-sitter if requested and present. Note: We leak all the memory allocated
+    /// by tree-sitter. This is an application, not a library. Fix this if we ever end up
+    /// making this a library.
+#ifdef HAVE_TREE_SITTER
+    if (options::get<"--tree-sitter">()) {
+        auto parser = ts_parser_new();
+        defer { ts_parser_delete(parser); };
 
+        /// Set the language.
+        if (lang == "C++") ts_parser_set_language(parser, tree_sitter_cpp());
+        else die("Unknown language '{}'", lang);
+
+        /// Parse the input.
+        auto tree = ts_parser_parse_string(parser, nullptr, text.data(), u32(text.size()));
+        defer { ts_tree_delete(tree); };
+
+        /// Print tree.
+        auto root = ts_tree_root_node(tree);
+        auto s = ts_node_string(root);
+        defer { free(s); };
+        fmt::print("{}\n\n", s);
+
+        /// Inorder tree walk.
+        auto walk = [&](auto&& f) {
+            auto node = ts_tree_root_node(tree);
+            auto cursor = ts_tree_cursor_new(node);
+            defer { ts_tree_cursor_delete(&cursor); };
+
+            while (ts_tree_cursor_goto_first_child(&cursor)) {
+                f(cursor);
+                while (ts_tree_cursor_goto_next_sibling(&cursor)) {
+                    f(cursor);
+                }
+            }
+        };
+
+        /// Positions.
+        std::vector<std::pair<usz, usz>> positions;
+
+        /// Highlight keywords.
+        walk([&](auto& cursor) {
+            auto node = ts_tree_cursor_current_node(&cursor);
+            auto type = ts_node_type(node);
+            if (type != "primitive_type"sv) return;
+
+            auto start = ts_node_start_byte(node);
+            auto end = ts_node_end_byte(node);
+            auto len = end - start;
+
+            positions.emplace_back(start, len);
+        });
+
+        /// Print positions.
+        for (auto [start, len] : positions) {
+           fmt::print("Keyword at {} with length {}\n", start, len);
+        }
+
+        std::exit(0);
+    }
+
+    /// Otherwise, use the built-in highlighters.
+    else
+#endif
+    {
+        if (lang == "C++") highlight_cxx(text);
+        else if (lang == "Go") highlight_go(text);
+        else if (lang == "C") highlight_c(text);
+        else if (lang == "int") highlight_intercept(text);
+        else die("Unknown language '{}'", lang);
+    }
+
+echo:
     std::fwrite(text.data(), 1, text.size(), stdout);
 }
