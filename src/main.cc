@@ -167,10 +167,9 @@ struct highlight_params {
 void highlight(std::string& text, const highlight_params& params) {
     static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
 
-    /// Prepend `\\` to escape sequences. Getting LaTeX to print a single escape char into
-    /// a file is kind of a pain, so we just resort to printing two of them instead.
+    /// Prepend `\` to escape sequences.
     std::vector<std::string> escape_sequences;
-    for (auto e : params.escape_sequences) escape_sequences.push_back(fmt::format("\\\\{}", e));
+    for (auto e : params.escape_sequences) escape_sequences.push_back(fmt::format("\\{}", e));
 
     /// Build trie.
     trie tr;
@@ -185,13 +184,16 @@ void highlight(std::string& text, const highlight_params& params) {
 
     /// Match keywords.
     auto matches = tr.match(text);
-    if (options::get<"--debug">()) {
-        for (auto& m : matches) {
-            std::string_view k = m.k == kind::keyword ? "keyword" : "operator";
-            fmt::print("{}: \"{}\" ({} chars)\n", k, text.substr(m.pos, m.len), m.len);
+    auto print_matches = [&] (auto it) {
+        if (options::get<"--debug">()) {
+            for (; it != matches.rend(); ++it) {
+                auto& m = *it;
+                fmt::print(stderr, "{}: \"{}\" ({} chars)\n", std::to_underlying(m.k), text.substr(m.pos, m.len), m.len);
+            }
+
+            fmt::print(stderr, "\n\n\n");
         }
-        std::exit(0);
-    }
+    };
 
     /// Macro call to insert for keywords/operators.
     auto typeset_kw = colour_string_prefix(params.lang_name, "Keyword");
@@ -206,10 +208,12 @@ void highlight(std::string& text, const highlight_params& params) {
     auto in_string = [&] { return string_end != std::string::npos; };
 
     /// Highlight matches.
-    for (auto& m : rgs::reverse_view(matches)) {
+    for (auto it = matches.rbegin(); it != matches.rend(); ++it) {
         /// Ignore matches not followed by whitespace, an operator, or the end of the string.
         static constexpr std::string_view allowed = " \t\r\n+-*/%&|^~!=<>?:;.,()[]{}'\"\\";
+        auto& m = *it;
         if (m.k == kind::ignore) continue;
+        print_matches(it);
 
         /// Mark the start and end of strings.
         if (m.k == kind::string) {
@@ -217,22 +221,19 @@ void highlight(std::string& text, const highlight_params& params) {
                 text.insert(string_end, END);
                 text.insert(m.pos, typeset_str);
                 string_end = std::string::npos;
+                continue;
             } else string_end = m.pos + m.len;
         }
 
         /// Skip anything other than escape sequences if we’re in as string.
         if (in_string()) {
             if (m.k == kind::escape_sequence) {
-                fmt::print(stderr, "Escape sequence: \"{}\"\n", text.substr(m.pos, m.len));
                 text.insert(m.pos + m.len, END);
                 text.insert(m.pos, typeset_esc);
                 string_end += typeset_esc.size() + sizeof(END) - 1;
             }
             continue;
         }
-
-        /// Handle operators.
-        if (m.k != kind::operator_ and m.pos + m.len < text.size() and not allowed.contains(text[m.pos + m.len])) continue;
 
         /// If it’s a comment, colour the rest of the line.
         if (m.k == kind::comment) {
@@ -255,7 +256,7 @@ void highlight(std::string& text, const highlight_params& params) {
             case kind::operator_: text.insert(m.pos, typeset_op); break;
             case kind::keyword: text.insert(m.pos, typeset_kw); break;
             case kind::type: text.insert(m.pos, typeset_ty); break;
-            default: std::unreachable();
+            default: die("Unreachable: Invalid match kind: {}", std::to_underlying(m.k));
         }
     }
 }
