@@ -41,6 +41,12 @@ enum struct kind {
     escape_sequence,
 };
 
+struct match_result {
+    usz pos{};
+    usz len{};
+    kind k{};
+};
+
 /// Trie for Aho-Corasick string matching.
 struct trie {
     struct node {
@@ -48,12 +54,6 @@ struct trie {
         bool is_word = false;
         node* fail = nullptr;
         usz depth = 0;
-        kind k{};
-    };
-
-    struct match_result {
-        usz pos{};
-        usz len{};
         kind k{};
     };
 
@@ -156,8 +156,7 @@ bool iscontinue(char c) {
     return std::isalnum(c) or c == '_';
 }
 
-/// Highlight code in a string.
-void highlight(std::string& text, const tables::highlight_params& params) {
+auto trie_match(std::string& text, const tables::highlight_params& params) -> std::vector<match_result> {
     static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
 
     /// Prepend `\` to escape sequences.
@@ -176,8 +175,12 @@ void highlight(std::string& text, const tables::highlight_params& params) {
     tr.finalise();
 
     /// Match keywords.
-    auto matches = tr.match(text);
-    auto print_matches = [&] (auto it) {
+    return tr.match(text);
+}
+
+/// Highlight code in a string.
+void highlight(std::string& text, const tables::highlight_params& params, const std::vector<match_result>& matches) {
+    auto print_matches = [&](auto it) {
         if (options::get<"--debug">()) {
             for (; it != matches.rend(); ++it) {
                 auto& m = *it;
@@ -203,7 +206,6 @@ void highlight(std::string& text, const tables::highlight_params& params) {
     /// Highlight matches.
     for (auto it = matches.rbegin(); it != matches.rend(); ++it) {
         /// Ignore matches not followed by whitespace, an operator, or the end of the string.
-        static constexpr std::string_view allowed = " \t\r\n+-*/%&|^~!=<>?:;.,()[]{}'\"\\";
         auto& m = *it;
         if (m.k == kind::ignore) continue;
         print_matches(it);
@@ -331,7 +333,7 @@ parser parser_cxx() {
     parser p{tree_sitter_cpp()};
 
     /// Set queries.
-    static constexpr std::string_view string_literal_query = "(raw_string_literal) @string";
+    static constexpr std::string_view string_literal_query = "(string_literal) @string";
     p.add_query(string_literal_query);
 
     return p;
@@ -362,65 +364,59 @@ int main(int argc, char** argv) {
     if (not langs.contains(lang_str)) die("Unsupported language '{}'", lang_str);
     auto& lang = langs.at(lang_str);
 
+    /// Match results.
+    std::vector<match_result> matches;
+
     /// Use tree-sitter if requested and present.
-#ifdef HAVE_TREE_SITTER
     if (options::get<"--tree-sitter">()) {
-/*
+#ifdef HAVE_TREE_SITTER
         auto p = lang.second();
 
         /// Parse the input.
-        auto tree = p(text);
-        defer { ts_tree_delete(tree); };
+        p(text);
 
-        /// Print tree.
-        auto root = ts_tree_root_node(tree);
-        auto s = ts_node_string(root);
-        defer { free(s); };
-        fmt::print("{}\n\n", s);
+        /// Get the root note.
+        auto root = ts_tree_root_node(p.tree);
 
-        /// Inorder tree walk.
-        auto walk = [&](auto&& f) {
-            auto node = ts_tree_root_node(tree);
-            auto cursor = ts_tree_cursor_new(node);
-            defer { ts_tree_cursor_delete(&cursor); };
+        /// Create a query cursor.
+        auto cur = ts_query_cursor_new();
+        defer { ts_query_cursor_delete(cur); };
 
-            while (ts_tree_cursor_goto_first_child(&cursor)) {
-                f(cursor);
-                while (ts_tree_cursor_goto_next_sibling(&cursor)) {
-                    f(cursor);
+        /// Run it on each query.
+        for (auto q : p.queries) {
+            TSQueryMatch match;
+            ts_query_cursor_exec(cur, q, root);
+            while (ts_query_cursor_next_match(cur, &match)) {
+                for (auto cap = match.captures; cap < match.captures + match.capture_count; ++cap) {
+                    auto n = ts_node_string(cap->node);
+                    defer { std::free(n); };
+
+                    /// Get the name of the match.
+                    u32 length{};
+                    auto name = ts_query_capture_name_for_id(q, cap->index, &length);
+                    if (options::get<"--debug">()) fmt::print(stderr, "Match: {} (\"{}\")\n", n, name);
+
+                    /// Get the start and end of the node.
+                    auto start = ts_node_start_byte(cap->node);
+                    auto end = ts_node_end_byte(cap->node);
+
+                    /// Determine kind from name.
+                    if (name == "string"sv) {
+                        matches.push_back({.pos = start, .len = 1, .k = kind::string});
+                        matches.push_back({.pos = end - 1, .len = 1, .k = kind::string});
+                    } else die("Unknown capture name '{}'", name);
                 }
             }
-        };
-
-        /// Positions.
-        std::vector<std::pair<usz, usz>> positions;
-
-        /// Highlight keywords.
-        walk([&](auto& cursor) {
-            auto node = ts_tree_cursor_current_node(&cursor);
-            auto type = ts_node_type(node);
-            if (type != "primitive_type"sv) return;
-
-            auto start = ts_node_start_byte(node);
-            auto end = ts_node_end_byte(node);
-            auto len = end - start;
-
-            positions.emplace_back(start, len);
-        });
-
-        /// Print positions.
-        for (auto [start, len] : positions) {
-            fmt::print("Keyword at {} with length {}\n", start, len);
         }
-*/
-
-        std::exit(42);
+#else
+        die("tree-sitter support not compiled in");
+#endif
     }
 
-    /// Otherwise, use the built-in highlighters.
-    else
-#endif
-        highlight(text, lang.first);
+    /// Otherwise, use our builtin parsers.
+    else { matches = trie_match(text, lang.first); }
 
+    /// Highlight the text and write it back out.
+    highlight(text, lang.first, matches);
     std::fwrite(text.data(), 1, text.size(), stdout);
 }

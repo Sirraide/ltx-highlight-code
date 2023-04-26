@@ -27,6 +27,12 @@
 \NewDocumentCommand \MDAtBeginCodeBlock {m} { \tl_gput_right:Nn \g__md_at_begin_code_block_tl { #1 } }
 \NewDocumentCommand \MDAllowBreak {} { \bool_gset_true:N \g__md_allow_break_bool }
 
+%% Attempt to use the tree sitter parser for a given language.
+\NewDocumentCommand \MDUseTreeSitter{m} { \__md_set_use_tree_sitter:n { #1 } }
+
+%% Don’t use tree sitter for a given language.
+\NewDocumentCommand \MDNoTreeSitter{m} { \__md_set_no_tree_sitter:n { #1 } }
+
 %% For preparing and inserting inline code.
 \def\MDPrepareCode{ \setbox\g__md_inline_code_box=\hbox }
 \NewDocumentCommand \MDInsertCode{} { \box_use_drop:N \g__md_inline_code_box }
@@ -107,6 +113,9 @@
 %% Second character-to-catcode dictionary for resetting.
 \prop_new:N \g__md_char_to_catcode_reset_prop
 
+%% Whether to use tree sitter by default.
+\bool_new:N \g__md_use_tree_sitter_default_bool
+
 %% Box for preparing inline code.
 \box_new:N \g__md_inline_code_box
 
@@ -163,6 +172,29 @@
     \sys_if_shell_unrestricted:TF {} {
         \msg_new:nnn { ltx-highlight-code } { shell } { This~package~requires~shell~access.~Please~add~the~`--enable-write18'~flag~to~your~LaTeX~command. }
         \msg_fatal:nn { ltx-highlight-code } { shell }
+    }
+}
+
+%% The control sequence that tells us whether to use tree sitter for a language or not.
+\cs_set:Npn \__md_should_use_tree_sitter_name:n #1 { g__md_should_use_tree_sitter_for_ #1: }
+
+%% Use tree sitter for a given language.
+\cs_set:Npn \__md_set_use_tree_sitter:n #1 {
+    %% Special handling for ‘Default’
+    \str_if_eq:nnTF { #1 } { Default } {
+        \bool_gset_true:N \g__md_use_tree_sitter_default_bool
+    } {
+        \cs_gset:cpn { \__md_should_use_tree_sitter_name:n {#1} } { \c_true_bool }
+    }
+}
+
+%% Don’t use tree sitter for a given language.
+\cs_set:Npn \__md_set_no_tree_sitter:n #1 {
+    %% Special handling for ‘Default’
+    \str_if_eq:nnTF { #1 } { Default } {
+        \bool_gset_false:N \g__md_use_tree_sitter_default_bool
+    } {
+        \cs_gset:cpn { \__md_should_use_tree_sitter_name:n {#1} } { \c_false_bool }
     }
 }
 
@@ -378,11 +410,25 @@
         %% Make sure we can run shell commands.
         \__md_check_shell:
 
+        %% Determine whether to use tree sitter. If tree sitter is enabled for this
+        %% language, or if it isn’t disabled and the default is to use tree sitter,
+        %% then use it.
+        \bool_if:nTF {
+            \cs_if_exist_use:cTF { \__md_should_use_tree_sitter_name:n {#1} } { } {
+                \g__md_use_tree_sitter_default_bool
+            }
+        } {
+            \str_set:Nn \l_tmpa_str { --tree-sitter }
+        } {
+            \str_clear:N \l_tmpa_str
+        }
+
         %% Perform the highlighting.
         \sys_shell_now:x {
             \tl_use:N \g__md_highlight_exe_tl\space
             #1\space
             \tl_use:N \g__md_tmp_file_name_tl\space
+            \str_use:N \l_tmpa_str\space
             >\space
             \tl_use:N \g__md_tmp_file_name_tl .1
         }
