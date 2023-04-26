@@ -65,20 +65,47 @@ The language name is case-sensitive. The following languages are currently suppo
 - Text (plain text, but monospaced and with `_` and other special characters escaped)
 
 ### Syntax Highlighting
-The colours used for syntax highlighting must be defined by the user using `\definecolor`. The colour names
-are of the form: `MD<language><kind>Color`, where `<language>` is the language name and `<kind>` is one of
-the following:
+Styles used for syntax highlighting are defined using the `\MDDefineStyle` macro:
+```latex
+\MDDefineStyle{<language>}{<kind>}{<style>}
+```
+where `<language>` is the language name, `<style>` is code that is run before the relevant token(s) are
+typeset, and `<kind>` is one of the following:
 - `Keyword`
-- `Type` (used for types that are not keyword; these are currently hard-coded; e.g. `T` in C++)
+- `Type` (used for types that are not keywords; these are currently hard-coded; e.g. `T` in C++)
 - `Operator`
 - `String`
 - `Comment`
 - `Escape` (used for escape sequences in strings; e.g. `\n` in C++)
 
-For example, to set the keyword colour for C++ keywords to bright blue, define
+For example, to typeset C++ comments in green and italic, you could do something like this:
 ```latex
-\definecolor{MDC++KeywordColor}{HTML}{0000FF}
+\MDDefineStyle{C++}{Comment}{\color{green}\itshape}
 ```
+
+If you just want to change the colour of a token, you can use the `\MDDefineColorStyle` macro:
+```latex
+\MDDefineColorStyle{<language>}{<kind>}{<param1>}{<param2>}
+```
+where `<param1>` and `<param2>` are passed as the second and third parameter to `\definecolor`. For example,
+to typeset C++ keywords in bright blue, do:
+```latex
+\MDDefineColorStyle{C++}{Keyword}{HTML}{0000FF}
+
+%% This is more or less equivalent to:
+\definecolor{<internal-name>}{HTML}{0000FF}
+\MDDefineStyle{C++}{Keyword}{\color{<internal-name>}}
+```
+
+For both of these macros, the language name may also be `Default`, in which case a default style is set that is used as a fallback
+should no specific style be defined for a certain token and language. For instance, this typesets *all* comments
+in blue and italic (except for C++ comments, for which we set a different style above):
+```latex
+\MDDefineStyle{Default}{Comment}{\color{blue}\itshape}
+```
+
+If neither a specific nor a default style is set for a combination of token and language, the token is typeset normally,
+and the package issues a warning.
 
 ### Using LaTeX commands in inline code and code blocks.
 Within code blocks and inline code, special LaTeX characters (e.g. `_`, ` \ `, ...) are treated as normal characters. This
