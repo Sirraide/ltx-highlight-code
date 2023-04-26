@@ -80,14 +80,14 @@ For example, to set the keyword colour for C++ keywords to bright blue, define
 \definecolor{MDC++KeywordColor}{HTML}{0000FF}
 ```
 
-### Using LaTeX commands in code blocks.
-Within code blocks, special LaTeX characters (e.g. `_`, ` \ `, ...) are treated as normal characters. This
-means that if you want to use LaTeX commands inside your code blocks, you’ll have to
+### Using LaTeX commands in inline code and code blocks.
+Within code blocks and inline code, special LaTeX characters (e.g. `_`, ` \ `, ...) are treated as normal characters. This
+means that if you want to use LaTeX commands inside inline code or code blocks, you’ll have to
 define replacements for ` \ `, `{`, and `}`.
 
 To simplify this process, the package provides the commands below, which make it so
-LaTeX treats the supplied character as either ` \ `, `{`, or `}` in code blocks—and only in
-code blocks.
+LaTeX treats the supplied character as either ` \ `, `{`, or `}` in inline code and code blocks. You can also call any of 
+these functions multiple times to set multiple alternative escape characters.
 ```latex
 \MDSetEscapeCharacter{<character>}     %% Sets a replacement for \
 \MDSetGroupBeginCharacter{<character>} %% Sets a replacement for {
