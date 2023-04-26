@@ -33,12 +33,16 @@ using options = clopts< // clang-format off
 
 enum struct kind {
     operator_,
+    identifier,
+    function,
+    parameter,
     keyword,
     type,
     ignore,
     comment,
     string,
     escape_sequence,
+    end, /// Only used by tree-sitter parsers.
 };
 
 struct match_result {
@@ -333,8 +337,33 @@ parser parser_cxx() {
     parser p{tree_sitter_cpp()};
 
     /// Set queries.
-    static constexpr std::string_view string_literal_query = "(string_literal) @string";
+    static constexpr std::string_view string_literal_query = R"ts(
+[
+(string_literal) @String
+(escape_sequence) @Escape
+(type_qualifier) @Type
+(primitive_type) @Type
+(pointer_declarator) @Operator
+(identifier) @Identifier
+(function_declarator declarator: (identifier) @Function)
+]
+)ts";
     p.add_query(string_literal_query);
+
+    /// Keyword query.
+    static constexpr std::string_view kws = R"ts(
+[
+"and" "and_eq" "bitand" "bitor" "break" "case" "catch" "class" "compl"
+"concept" "consteval" "constexpr" "constinit" "continue" "co_await" "co_return" "co_yield"
+"decltype" "default" "delete" "do" "else" "enum" "explicit" "extern" "for" "friend" "goto"
+"if" "inline" "mutable" "namespace" "new" "noexcept" "not" "not_eq" "operator" "or" "or_eq" "private"
+"protected" "public" "register" "requires" "return" "sizeof" "static" "static_assert"
+"struct" "switch" "template"
+"thread_local" "throw" "try" "typedef" "typename" "union" "using"
+"virtual" "volatile" "while" "xor" "xor_eq"
+] @Keyword
+)ts";
+    p.add_query(kws);
 
     return p;
 }
@@ -364,9 +393,6 @@ int main(int argc, char** argv) {
     if (not langs.contains(lang_str)) die("Unsupported language '{}'", lang_str);
     auto& lang = langs.at(lang_str);
 
-    /// Match results.
-    std::vector<match_result> matches;
-
     /// Use tree-sitter if requested and present.
     if (options::get<"--tree-sitter">()) {
 #ifdef HAVE_TREE_SITTER
@@ -381,6 +407,19 @@ int main(int argc, char** argv) {
         /// Create a query cursor.
         auto cur = ts_query_cursor_new();
         defer { ts_query_cursor_delete(cur); };
+        if (options::get<"--debug">()) {
+            auto s = ts_node_string(root);
+            defer { std::free(s); };
+            fmt::print(stderr, "Root node: {}\n", s);
+        }
+
+        /// Match results.
+        struct tree_sitter_match_result {
+            u32 pos;
+            bool is_end_node;
+            const char* name;
+        };
+        std::vector<tree_sitter_match_result> matches;
 
         /// Run it on each query.
         for (auto q : p.queries) {
@@ -400,12 +439,19 @@ int main(int argc, char** argv) {
                     auto start = ts_node_start_byte(cap->node);
                     auto end = ts_node_end_byte(cap->node);
 
-                    /// Determine kind from name.
-                    if (name == "string"sv) {
-                        matches.push_back({.pos = start, .len = 1, .k = kind::string});
-                        matches.push_back({.pos = end - 1, .len = 1, .k = kind::string});
-                    } else die("Unknown capture name '{}'", name);
+                    /// Add it to the list of matches.
+                    matches.push_back({.pos = start, .is_end_node = false, .name = name});
+                    matches.push_back({.pos = end, .is_end_node = true, .name = nullptr});
                 }
+            }
+
+            /// Sort the matches in such a way that the matches with the greatest position come first.
+            std::sort(matches.begin(), matches.end(), [](const auto& a, const auto& b) { return a.pos > b.pos; });
+
+            /// Iterate over all matches and apply highlighting.
+            for (auto& m : matches) {
+                if (m.is_end_node) text.insert(m.pos, END);
+                else text.insert(m.pos, colour_string_prefix(lang.first.get().lang_name, m.name));
             }
         }
 #else
@@ -414,9 +460,8 @@ int main(int argc, char** argv) {
     }
 
     /// Otherwise, use our builtin parsers.
-    else { matches = trie_match(text, lang.first); }
+    else { highlight(text, lang.first, trie_match(text, lang.first)); }
 
-    /// Highlight the text and write it back out.
-    highlight(text, lang.first, matches);
+    /// Write the text back out.
     std::fwrite(text.data(), 1, text.size(), stdout);
 }
