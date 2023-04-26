@@ -4,25 +4,16 @@
 #include <tables.hh>
 #include <utility>
 #include <utils.hh>
-
-#if defined(__has_include)
-#    if __has_include(<tree_sitter/api.h>)
-#        define HAVE_TREE_SITTER
-
-#        include <tree_sitter/api.h>
-
-extern "C" {
-extern const TSLanguage* tree_sitter_cpp(void);
-}
-#    endif
-#endif
+#include <treesitter.hh>
 
 using namespace command_line_options;
 using options = clopts< // clang-format off
         positional<"language", "The programming language to highlight">,
         positional<"input", "The input file to highlight", file<std::string>>,
         flag<"--debug", "Debug output">,
+#ifdef ENABLE_TREE_SITTER
         flag<"--tree-sitter", "Use tree-sitter to perform syntax highlighting">,
+#endif
         help<>
 >; // clang-format on
 
@@ -265,109 +256,6 @@ void trim(std::string& s) {
     while (not s.empty() && isspace(s.front())) s.erase(s.begin());
 }
 
-struct parser {
-    TSParser* handle = nullptr;
-    const TSLanguage* lang = nullptr;
-    TSTree* tree = nullptr;
-    std::vector<TSQuery*> queries;
-
-    /// Create a new parser.
-    explicit parser(const TSLanguage* language)
-        : lang(language) {
-        handle = ts_parser_new();
-        ts_parser_set_language(handle, lang);
-    }
-
-    /// Copying makes no sense.
-    parser(const parser&) = delete;
-    parser& operator=(const parser&) = delete;
-
-    /// Move a parser.
-    parser(parser&& other)
-        : handle(other.handle)
-        , lang(std::exchange(other.lang, nullptr))
-        , tree(std::exchange(other.tree, nullptr))
-        , queries(std::move(other.queries)) {}
-
-    parser& operator=(parser&& other) {
-        if (this == std::addressof(other)) return *this;
-        delete_this();
-        handle = std::exchange(other.handle, nullptr);
-        lang = std::exchange(other.lang, nullptr);
-        tree = std::exchange(other.tree, nullptr);
-        queries = std::move(other.queries);
-    }
-
-    /// RAII go brrr.
-    ~parser() { delete_this(); }
-
-    /// Create a new query.
-    void add_query(std::string_view text) {
-        TSQueryError err{};
-        u32 err_offset{};
-        TSQuery* query = ts_query_new(lang, text.data(), u32(text.size()), &err_offset, &err);
-
-        /// Add the query if creating it succeeded, and print an error otherwise.
-        if (query) queries.push_back(query);
-        else {
-            fmt::print(stderr, "Error creating query (at offset {}): {}\n", err_offset, std::to_underlying(err));
-            fmt::print(stderr, "Offending query string:\n{}\n", text);
-        }
-    }
-
-    /// Parse text.
-    void operator()(std::string_view text) {
-        tree = ts_parser_parse_string(handle, tree, text.data(), u32(text.size()));
-    }
-
-private:
-    void delete_this() {
-        if (handle) {
-            if (tree) ts_tree_delete(tree);
-            for (auto q : queries) ts_query_delete(q);
-            ts_parser_delete(handle);
-        }
-    }
-};
-
-parser parser_c() { die("Sorry, tree-sitter-c is not yet supported."); }
-parser parser_go() { die("Sorry, tree-sitter-go is not yet supported."); }
-parser parser_intercept() { die("Sorry, tree-sitter-intercept is not yet supported."); }
-parser parser_cxx() {
-    parser p{tree_sitter_cpp()};
-
-    /// Set queries.
-    static constexpr std::string_view string_literal_query = R"ts(
-[
-(string_literal) @String
-(escape_sequence) @Escape
-(type_qualifier) @Type
-(primitive_type) @Type
-(pointer_declarator) @Operator
-(identifier) @Identifier
-(function_declarator declarator: (identifier) @Function)
-]
-)ts";
-    p.add_query(string_literal_query);
-
-    /// Keyword query.
-    static constexpr std::string_view kws = R"ts(
-[
-"and" "and_eq" "bitand" "bitor" "break" "case" "catch" "class" "compl"
-"concept" "consteval" "constexpr" "constinit" "continue" "co_await" "co_return" "co_yield"
-"decltype" "default" "delete" "do" "else" "enum" "explicit" "extern" "for" "friend" "goto"
-"if" "inline" "mutable" "namespace" "new" "noexcept" "not" "not_eq" "operator" "or" "or_eq" "private"
-"protected" "public" "register" "requires" "return" "sizeof" "static" "static_assert"
-"struct" "switch" "template"
-"thread_local" "throw" "try" "typedef" "typename" "union" "using"
-"virtual" "volatile" "while" "xor" "xor_eq"
-] @Keyword
-)ts";
-    p.add_query(kws);
-
-    return p;
-}
-
 int main(int argc, char** argv) {
     options::parse(argc, argv);
     std::string lang_str = *options::get<"language">();
@@ -381,12 +269,12 @@ int main(int argc, char** argv) {
     }
 
     /// Supported languages.
-    static const std::unordered_map<std::string_view, std::pair<std::reference_wrapper<const tables::highlight_params>, parser (*)()>> langs{
-        {"c", {tables::c_params, parser_c}},
-        {"c++", {tables::cxx_params, parser_cxx}},
-        {"go", {tables::go_params, parser_go}},
-        {"int", {tables::intercept_params, parser_intercept}},
-        {"intercept", {tables::intercept_params, parser_intercept}},
+    static const std::unordered_map<std::string_view, std::reference_wrapper<const tables::highlight_params>> langs{
+        {"c", tables::c_params},
+        {"c++", tables::cxx_params},
+        {"go", tables::go_params},
+        {"int", tables::intercept_params},
+        {"intercept", tables::intercept_params},
     };
 
     /// Get the language.
@@ -394,73 +282,16 @@ int main(int argc, char** argv) {
     auto& lang = langs.at(lang_str);
 
     /// Use tree-sitter if requested and present.
+#ifdef ENABLE_TREE_SITTER
     if (options::get<"--tree-sitter">()) {
-#ifdef HAVE_TREE_SITTER
-        auto p = lang.second();
-
-        /// Parse the input.
-        p(text);
-
-        /// Get the root note.
-        auto root = ts_tree_root_node(p.tree);
-
-        /// Create a query cursor.
-        auto cur = ts_query_cursor_new();
-        defer { ts_query_cursor_delete(cur); };
-        if (options::get<"--debug">()) {
-            auto s = ts_node_string(root);
-            defer { std::free(s); };
-            fmt::print(stderr, "Root node: {}\n", s);
-        }
-
-        /// Match results.
-        struct tree_sitter_match_result {
-            u32 pos;
-            bool is_end_node;
-            const char* name;
-        };
-        std::vector<tree_sitter_match_result> matches;
-
-        /// Run it on each query.
-        for (auto q : p.queries) {
-            TSQueryMatch match;
-            ts_query_cursor_exec(cur, q, root);
-            while (ts_query_cursor_next_match(cur, &match)) {
-                for (auto cap = match.captures; cap < match.captures + match.capture_count; ++cap) {
-                    auto n = ts_node_string(cap->node);
-                    defer { std::free(n); };
-
-                    /// Get the name of the match.
-                    u32 length{};
-                    auto name = ts_query_capture_name_for_id(q, cap->index, &length);
-                    if (options::get<"--debug">()) fmt::print(stderr, "Match: {} (\"{}\")\n", n, name);
-
-                    /// Get the start and end of the node.
-                    auto start = ts_node_start_byte(cap->node);
-                    auto end = ts_node_end_byte(cap->node);
-
-                    /// Add it to the list of matches.
-                    matches.push_back({.pos = start, .is_end_node = false, .name = name});
-                    matches.push_back({.pos = end, .is_end_node = true, .name = nullptr});
-                }
-            }
-
-            /// Sort the matches in such a way that the matches with the greatest position come first.
-            std::sort(matches.begin(), matches.end(), [](const auto& a, const auto& b) { return a.pos > b.pos; });
-
-            /// Iterate over all matches and apply highlighting.
-            for (auto& m : matches) {
-                if (m.is_end_node) text.insert(m.pos, END);
-                else text.insert(m.pos, colour_string_prefix(lang.first.get().lang_name, m.name));
-            }
-        }
-#else
-        die("tree-sitter support not compiled in");
-#endif
+        tree_sitter_highlight(text, lang);
+        std::fwrite(text.data(), 1, text.size(), stdout);
+        return;
     }
+#endif
 
     /// Otherwise, use our builtin parsers.
-    else { highlight(text, lang.first, trie_match(text, lang.first)); }
+    highlight(text, lang, trie_match(text, lang));
 
     /// Write the text back out.
     std::fwrite(text.data(), 1, text.size(), stdout);

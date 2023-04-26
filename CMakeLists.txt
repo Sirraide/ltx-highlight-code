@@ -172,18 +172,15 @@ if (EXISTS ${PROJECT_SOURCE_DIR}/include)
 endif()
 
 ## Add the executable.
-add_executable(ltx-highlight-code
-    ${sources}
-
-    ## Tree-sitter parsers.
-    libs/tree-sitter-cpp/src/parser.c
-    libs/tree-sitter-cpp/src/scanner.cc
-)
-
-## Include dirs for tree sitter parsers.
-target_include_directories(ltx-highlight-code PRIVATE
-    libs/tree-sitter-cpp/src
-)
+add_executable(ltx-highlight-code ${sources})
 
 ## Apply our options.
-target_link_libraries(ltx-highlight-code PRIVATE options tree-sitter)
+target_link_libraries(ltx-highlight-code PRIVATE options)
+
+## Link against tree sitter if enabled.
+if ("${ENABLE_TREE_SITTER}")
+    target_link_libraries(ltx-highlight-code PRIVATE tree-sitter)
+    target_compile_definitions(ltx-highlight-code PRIVATE ENABLE_TREE_SITTER)
+endif()
+
+

@@ -4,6 +4,3 @@
 [submodule "libs/clopts"]
 	path = libs/clopts
 	url = https://github.com/Sirraide/clopts
-[submodule "libs/tree-sitter-cpp"]
-	path = libs/tree-sitter-cpp
-	url = https://github.com/tree-sitter/tree-sitter-cpp
