@@ -1,27 +1,29 @@
 #include <clopts.hh>
 #include <queue>
 #include <ranges>
+#include <tables.hh>
 #include <utility>
 #include <utils.hh>
 
 #if defined(__has_include)
 #    if __has_include(<tree_sitter/api.h>)
 #        define HAVE_TREE_SITTER
+
 #        include <tree_sitter/api.h>
 
 extern "C" {
-extern const TSLanguage *tree_sitter_cpp(void);
+extern const TSLanguage* tree_sitter_cpp(void);
 }
 #    endif
 #endif
 
 using namespace command_line_options;
 using options = clopts< // clang-format off
-    positional<"language", "The programming language to highlight">,
-    positional<"input", "The input file to highlight", file<std::string>>,
-    flag<"--debug", "Debug output">,
-    flag<"--tree-sitter", "Use tree-sitter to perform syntax highlighting">,
-    help<>
+        positional<"language", "The programming language to highlight">,
+        positional<"input", "The input file to highlight", file<std::string>>,
+        flag<"--debug", "Debug output">,
+        flag<"--tree-sitter", "Use tree-sitter to perform syntax highlighting">,
+        help<>
 >; // clang-format on
 
 /// Characters used by the package.
@@ -138,7 +140,8 @@ struct trie {
             }
         }
 
-        if (last_match_end != std::string::npos) matches.push_back({last_match_end - current->depth + 1, current->depth, last_kind});
+        if (last_match_end != std::string::npos)
+            matches.push_back({last_match_end - current->depth + 1, current->depth, last_kind});
         return matches;
     }
 };
@@ -153,18 +156,8 @@ bool iscontinue(char c) {
     return std::isalnum(c) or c == '_';
 }
 
-/// Parameters for highlighting.
-struct highlight_params {
-    std::string_view lang_name;
-    std::span<const char> string_delimiters;
-    std::string_view escape_sequences;
-    std::string_view line_comment_prefix;
-    std::span<const std::string_view> keywords;
-    std::span<const std::string_view> types;
-};
-
 /// Highlight code in a string.
-void highlight(std::string& text, const highlight_params& params) {
+void highlight(std::string& text, const tables::highlight_params& params) {
     static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
 
     /// Prepend `\` to escape sequences.
@@ -261,364 +254,122 @@ void highlight(std::string& text, const highlight_params& params) {
     }
 }
 
-void highlight_cxx(std::string& text) {
-    static constexpr std::string_view keywords[]{
-        "#include",
-        "#define",
-        "#undef",
-        "#if",
-        "#ifdef",
-        "#ifndef",
-        "#else",
-        "#elif",
-        "#endif",
-        "alignas",
-        "alignof",
-        "and",
-        "and_eq",
-        "asm",
-        "auto",
-        "bitand",
-        "bitor",
-        "break",
-        "case",
-        "catch",
-        "class",
-        "compl",
-        "concept",
-        "const",
-        "consteval",
-        "constexpr",
-        "constinit",
-        "const_cast",
-        "continue",
-        "co_await",
-        "co_return",
-        "co_yield",
-        "decltype",
-        "default",
-        "delete",
-        "do",
-        "dynamic_cast",
-        "else",
-        "enum",
-        "explicit",
-        "export",
-        "extern",
-        "false",
-        "for",
-        "friend",
-        "goto",
-        "if",
-        "inline",
-        "mutable",
-        "namespace",
-        "new",
-        "noexcept",
-        "not",
-        "not_eq",
-        "nullptr",
-        "operator",
-        "or",
-        "or_eq",
-        "private",
-        "protected",
-        "public",
-        "register",
-        "reinterpret_cast",
-        "requires",
-        "return",
-        "sizeof",
-        "static",
-        "static_assert",
-        "static_cast",
-        "struct",
-        "switch",
-        "template",
-        "this",
-        "thread_local",
-        "throw",
-        "true",
-        "try",
-        "typedef",
-        "typeid",
-        "typename",
-        "union",
-        "using",
-        "virtual",
-        "volatile",
-        "while",
-        "xor",
-        "xor_eq",
-    };
-
-    static constexpr std::string_view types[]{
-        "bool",
-        "char",
-        "char8_t",
-        "char16_t",
-        "char32_t",
-        "double",
-        "float",
-        "int",
-        "long",
-        "short",
-        "signed",
-        "T",
-        "unsigned",
-        "void",
-        "wchar_t",
-    };
-
-    highlight(
-        text,
-        highlight_params{
-            .lang_name = "C++",
-            .string_delimiters = "'\"",
-            .escape_sequences = "'\"\\nrt",
-            .line_comment_prefix = "//",
-            .keywords = keywords,
-            .types = types,
-        }
-    );
-}
-
-void highlight_c(std::string& text) {
-    static constexpr std::string_view keywords[]{
-        "_Alignas",
-        "_Alignof",
-        "_Atomic",
-        "_BitInt",
-        "_Bool",
-        "_Complex",
-        "_Decimal32",
-        "_Decimal64",
-        "_Decimal128",
-        "_Generic",
-        "_Imaginary",
-        "_Noreturn",
-        "_Pragma",
-        "_Static_assert",
-        "_Thread_local",
-        "#embed",
-        "#error",
-        "#include",
-        "#line",
-        "#pragma",
-        "#warning",
-        "#define",
-        "#undef",
-        "#if",
-        "#ifdef",
-        "#ifndef",
-        "#else",
-        "#elif",
-        "#elifdef",
-        "#elifndef",
-        "#endif",
-        "alignas",
-        "alignof",
-        "asm",
-        "auto",
-        "break",
-        "case",
-        "const",
-        "constexpr",
-        "continue",
-        "default",
-        "do",
-        "else",
-        "enum",
-        "extern",
-        "false",
-        "float",
-        "for",
-        "fortran",
-        "goto",
-        "if",
-        "inline",
-        "NULL",
-        "nullptr",
-        "register",
-        "restrict",
-        "return",
-        "sizeof",
-        "static",
-        "static_assert",
-        "struct",
-        "switch",
-        "thread_local",
-        "true",
-        "typedef",
-        "typeof",
-        "typeof_unqual",
-        "union",
-        "volatile",
-        "while",
-    };
-
-    static constexpr std::string_view types[]{
-        "bool",
-        "char",
-        "double",
-        "float",
-        "int",
-        "long",
-        "short",
-        "signed",
-        "unsigned",
-        "void",
-    };
-
-    highlight(
-        text,
-        highlight_params{
-            .lang_name = "C",
-            .string_delimiters = "'\"",
-            .escape_sequences = "'\"\\nrt",
-            .line_comment_prefix = "//",
-            .keywords = keywords,
-            .types = types,
-        }
-    );
-}
-
-void highlight_intercept(std::string& text) {
-    static constexpr std::string_view keywords[]{
-        "as",
-        "else",
-        "for",
-        "if",
-        "type",
-        "while",
-    };
-
-    static constexpr std::string_view types[]{
-        "byte",
-        "integer",
-        "s8",
-        "s16",
-        "s32",
-        "s64",
-        "u8",
-        "u16",
-        "u32",
-        "u64",
-        "void",
-    };
-
-    highlight(
-        text,
-        highlight_params{
-            .lang_name = "int",
-            .string_delimiters = "'\"",
-            .escape_sequences = "'\"\\nrtfvaeb",
-            .line_comment_prefix = ";;",
-            .keywords = keywords,
-            .types = types,
-        }
-    );
-}
-
-/// The only thing I can stand less than Go is Go without syntax highlighting.
-void highlight_go(std::string& text) {
-    static constexpr std::string_view keywords[]{
-        "break",
-        "default",
-        "func",
-        "interface",
-        "any",
-        "select",
-        "case",
-        "defer",
-        "go",
-        "struct",
-        "chan",
-        "else",
-        "goto",
-        "package",
-        "switch",
-        "const",
-        "fallthrough",
-        "if",
-        "range",
-        "type",
-        "continue",
-        "for",
-        "import",
-        "return",
-        "var",
-        "true",
-        "false",
-        "iota",
-        "nil",
-    };
-
-    static constexpr std::string_view types[]{
-        "bool",
-        "byte",
-        "complex64",
-        "complex128",
-        "error",
-        "float32",
-        "float64",
-        "int",
-        "int8",
-        "int16",
-        "int32",
-        "int64",
-        "map",
-        "rune",
-        "string",
-        "T",
-        "uint",
-        "uint8",
-        "uint16",
-        "uint32",
-        "uint64",
-        "uintptr",
-    };
-
-    highlight(
-        text,
-        highlight_params{
-            .lang_name = "Go",
-            .string_delimiters = "\"'",
-            .escape_sequences = "'\"\\nrt",
-            .line_comment_prefix = "//",
-            .keywords = keywords,
-            .types = types,
-        }
-    );
-}
-
 void trim(std::string& s) {
     while (not s.empty() && isspace(s.back())) s.pop_back();
     while (not s.empty() && isspace(s.front())) s.erase(s.begin());
 }
 
+struct parser {
+    TSParser* handle = nullptr;
+    const TSLanguage* lang = nullptr;
+    TSTree* tree = nullptr;
+    std::vector<TSQuery*> queries;
+
+    /// Create a new parser.
+    explicit parser(const TSLanguage* language)
+        : lang(language) {
+        handle = ts_parser_new();
+        ts_parser_set_language(handle, lang);
+    }
+
+    /// Copying makes no sense.
+    parser(const parser&) = delete;
+    parser& operator=(const parser&) = delete;
+
+    /// Move a parser.
+    parser(parser&& other)
+        : handle(other.handle)
+        , lang(std::exchange(other.lang, nullptr))
+        , tree(std::exchange(other.tree, nullptr))
+        , queries(std::move(other.queries)) {}
+
+    parser& operator=(parser&& other) {
+        if (this == std::addressof(other)) return *this;
+        delete_this();
+        handle = std::exchange(other.handle, nullptr);
+        lang = std::exchange(other.lang, nullptr);
+        tree = std::exchange(other.tree, nullptr);
+        queries = std::move(other.queries);
+    }
+
+    /// RAII go brrr.
+    ~parser() { delete_this(); }
+
+    /// Create a new query.
+    void add_query(std::string_view text) {
+        TSQueryError err{};
+        u32 err_offset{};
+        TSQuery* query = ts_query_new(lang, text.data(), u32(text.size()), &err_offset, &err);
+
+        /// Add the query if creating it succeeded, and print an error otherwise.
+        if (query) queries.push_back(query);
+        else {
+            fmt::print(stderr, "Error creating query (at offset {}): {}\n", err_offset, std::to_underlying(err));
+            fmt::print(stderr, "Offending query string:\n{}\n", text);
+        }
+    }
+
+    /// Parse text.
+    void operator()(std::string_view text) {
+        tree = ts_parser_parse_string(handle, tree, text.data(), u32(text.size()));
+    }
+
+private:
+    void delete_this() {
+        if (handle) {
+            if (tree) ts_tree_delete(tree);
+            for (auto q : queries) ts_query_delete(q);
+            ts_parser_delete(handle);
+        }
+    }
+};
+
+parser parser_c() { die("Sorry, tree-sitter-c is not yet supported."); }
+parser parser_go() { die("Sorry, tree-sitter-go is not yet supported."); }
+parser parser_intercept() { die("Sorry, tree-sitter-intercept is not yet supported."); }
+parser parser_cxx() {
+    parser p{tree_sitter_cpp()};
+
+    /// Set queries.
+    static constexpr std::string_view string_literal_query = "(raw_string_literal) @string";
+    p.add_query(string_literal_query);
+
+    return p;
+}
+
 int main(int argc, char** argv) {
     options::parse(argc, argv);
-    std::string_view lang = *options::get<"language">();
+    std::string lang_str = *options::get<"language">();
     std::string text = options::get<"input">()->contents;
 
     trim(text);
-    if (lang == "Text") goto echo;
+    std::transform(lang_str.begin(), lang_str.end(), lang_str.begin(), [](char c) { return std::tolower(c); });
+    if (lang_str == "text") {
+        std::fwrite(text.data(), 1, text.size(), stdout);
+        return 0;
+    }
 
-    /// Use tree-sitter if requested and present. Note: We leak all the memory allocated
-    /// by tree-sitter. This is an application, not a library. Fix this if we ever end up
-    /// making this a library.
+    /// Supported languages.
+    static const std::unordered_map<std::string_view, std::pair<std::reference_wrapper<const tables::highlight_params>, parser (*)()>> langs{
+        {"c", {tables::c_params, parser_c}},
+        {"c++", {tables::cxx_params, parser_cxx}},
+        {"go", {tables::go_params, parser_go}},
+        {"int", {tables::intercept_params, parser_intercept}},
+        {"intercept", {tables::intercept_params, parser_intercept}},
+    };
+
+    /// Get the language.
+    if (not langs.contains(lang_str)) die("Unsupported language '{}'", lang_str);
+    auto& lang = langs.at(lang_str);
+
+    /// Use tree-sitter if requested and present.
 #ifdef HAVE_TREE_SITTER
     if (options::get<"--tree-sitter">()) {
-        auto parser = ts_parser_new();
-        defer { ts_parser_delete(parser); };
-
-        /// Set the language.
-        if (lang == "C++") ts_parser_set_language(parser, tree_sitter_cpp());
-        else die("Unknown language '{}'", lang);
+/*
+        auto p = lang.second();
 
         /// Parse the input.
-        auto tree = ts_parser_parse_string(parser, nullptr, text.data(), u32(text.size()));
+        auto tree = p(text);
         defer { ts_tree_delete(tree); };
 
         /// Print tree.
@@ -659,23 +410,17 @@ int main(int argc, char** argv) {
 
         /// Print positions.
         for (auto [start, len] : positions) {
-           fmt::print("Keyword at {} with length {}\n", start, len);
+            fmt::print("Keyword at {} with length {}\n", start, len);
         }
+*/
 
-        std::exit(0);
+        std::exit(42);
     }
 
     /// Otherwise, use the built-in highlighters.
     else
 #endif
-    {
-        if (lang == "C++") highlight_cxx(text);
-        else if (lang == "Go") highlight_go(text);
-        else if (lang == "C") highlight_c(text);
-        else if (lang == "int") highlight_intercept(text);
-        else die("Unknown language '{}'", lang);
-    }
+        highlight(text, lang.first);
 
-echo:
     std::fwrite(text.data(), 1, text.size(), stdout);
 }
