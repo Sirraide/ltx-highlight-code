@@ -155,10 +155,9 @@ struct highlight_params {
 void highlight(std::string& text, const highlight_params& params) {
     static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
 
-    /// Prepend `\\` to escape sequences. Getting LaTeX to print a single escape char into
-    /// a file is kind of a pain, so we just resort to printing two of them instead.
+    /// Prepend `\` to escape sequences.
     std::vector<std::string> escape_sequences;
-    for (auto e : params.escape_sequences) escape_sequences.push_back(fmt::format("\\\\{}", e));
+    for (auto e : params.escape_sequences) escape_sequences.push_back(fmt::format("\\{}", e));
 
     /// Build trie.
     trie tr;
@@ -211,7 +210,6 @@ void highlight(std::string& text, const highlight_params& params) {
         /// Skip anything other than escape sequences if we’re in as string.
         if (in_string()) {
             if (m.k == kind::escape_sequence) {
-                fmt::print(stderr , "Escape sequence: \"{}\"\n", text.substr(m.pos, m.len));
                 text.insert(m.pos + m.len, END);
                 text.insert(m.pos, typeset_esc);
                 string_end += typeset_esc.size() + sizeof(END) - 1;
