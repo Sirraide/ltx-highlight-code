@@ -23,6 +23,7 @@ enum struct kind {
     type,
     ignore,
     comment,
+    newline,
     string,
     escape_sequence,
 };
@@ -168,6 +169,7 @@ void highlight(std::string& text, const highlight_params& params) {
     for (const auto& t : params.types) tr.insert(t, kind::type);
     tr.insert("::", kind::operator_);
     tr.insert(params.line_comment_prefix, kind::comment);
+    tr.insert("\n", kind::newline);
     tr.finalise();
 
     /// Match keywords.
@@ -195,6 +197,15 @@ void highlight(std::string& text, const highlight_params& params) {
     usz string_end = std::string::npos;
     auto in_string = [&] { return string_end != std::string::npos; };
 
+    /// For line command start, remove all matches up to the next newline.
+    for (usz i = 0; i < matches.size();) {
+        if (matches[i++].k != kind::comment) continue;
+        usz remove_end = i;
+        while (i < matches.size() and matches[remove_end].k != kind::newline) remove_end++;
+        if (i != remove_end) matches.erase(matches.begin() + isz(i), matches.begin() + isz(remove_end));
+        i++;
+    }
+
     /// Highlight matches.
     for (auto it = matches.rbegin(); it != matches.rend(); ++it) {
         /// Ignore matches not followed by whitespace, an operator, or the end of the string.
@@ -202,6 +213,9 @@ void highlight(std::string& text, const highlight_params& params) {
         auto& m = *it;
         if (m.k == kind::ignore) continue;
         print_matches(it);
+
+        /// Ignore newlines.
+        if (m.k == kind::newline) continue;
 
         /// Mark the start and end of strings.
         if (m.k == kind::string) {
