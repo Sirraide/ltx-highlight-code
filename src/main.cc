@@ -249,8 +249,11 @@ void highlight(std::string& text, const highlight_params& params) {
             continue;
         }
 
-        /// Keywords and types must not be preceded by a character that may be part of an identifier.
-        if ((m.k == kind::keyword or m.k == kind::type) and m.pos > 0 and iscontinue(text[m.pos - 1])) continue;
+        /// Keywords and types must not be preceded or followed by a character that may be part of an identifier.
+        if ((m.k == kind::keyword or m.k == kind::type)) {
+            if (m.pos > 0 and iscontinue(text[m.pos - 1])) continue;
+            if (m.pos + m.len < text.size() and iscontinue(text[m.pos + m.len])) continue;
+        }
 
         /// Otherwise, colour the match appropriately.
         text.insert(m.pos + m.len, END);
