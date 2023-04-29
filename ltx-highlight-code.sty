@@ -12,6 +12,14 @@
     \msg_fatal:nn { ltx-highlight-code } { xetex }
 }
 
+%% Variants.
+\cs_generate_variant:Nn \dim_gset:Nn { Nx }
+\cs_generate_variant:Nn \dim_set:Nn { Nx }
+\cs_generate_variant:Nn \tl_gset:Nn { Nx }
+\cs_generate_variant:Nn \seq_const_from_clist:Nn { Nx }
+\cs_generate_variant:Nn \int_const:Nn { Nx }
+\cs_generate_variant:Nn \tl_const:Nn { Nx }
+
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  API Functions
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -48,13 +56,12 @@
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Constants
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-\cs_generate_variant:Nn \int_const:Nn { Nx }
-\cs_generate_variant:Nn \tl_const:Nn { Nx }
-\int_const:Nx \c__md_backquote_int { 96 }
+\int_const:Nx \c__md_backquote_int { 96 } %% `
+\int_const:Nx \c__md_uscore_int { 95 }    %% _
 \tl_const:Nx \c__md_backquote_tl { \char_generate:nn { \c__md_backquote_int } { 12 } }
+\tl_const:Nx \c__md_uscore_tl { \char_generate:nn { \c__md_uscore_int } { 12 } }
 
 %% Special characters.
-\cs_generate_variant:Nn \seq_const_from_clist:Nn { Nx }
 \seq_const_from_clist:Nx \c__md_special_chars_seq {
     35,  %% #
     36,  %% $
@@ -62,7 +69,6 @@
     38,  %% &
     92,  %% \
     94,  %% ^
-    95,  %% _
     123, %% {
     125, %% }
     126  %% ~
@@ -100,6 +106,9 @@
 
 %% This stores the old catcodes of special characters.
 \seq_new:N \g__md_old_catcodes_seq
+
+%% This stores the old catcode of _.
+\int_new:N \g__md_old_uscore_catcode_int
 
 %% Character-to-catcode dictionary.
 \prop_new:N \g__md_char_to_catcode_prop
@@ -173,6 +182,7 @@
 \AtBeginDocument {
     \char_set_catcode_active:n { \c__md_backquote_int }
     \char_gset_active_eq:NN \` \__md_single_backquote:w
+    \char_gset_active_eq:NN \_ \__md_active_uscore:
 }
 
 %% The character ^^P (ASCII 0x10, ‘data link escape’) is used instead of \ as the command escape
@@ -225,6 +235,9 @@
     \seq_gput_right:Nx \g__md_old_catcodes_seq { \char_value_catcode:n {64} }
     \char_set_catcode_letter:n { 64 }
 
+    %% Underscore gets special treatment.
+    \int_gset:Nn \g__md_old_uscore_catcode_int { \char_value_catcode:n { \c__md_uscore_int } }
+    \char_set_catcode_active:n { \c__md_uscore_int }
 
     %% Make backtick an ‘other’ character again.
     \char_set_catcode_other:n { \c__md_backquote_int }
@@ -245,6 +258,9 @@
     %% Reset @.
     \seq_gpop_left:NN \g__md_old_catcodes_seq \l_tmpa_int
     \char_set_catcode:nn { 64 } { \l_tmpa_int }
+
+    %% Reset underscore.
+    \char_set_catcode:nn { \c__md_uscore_int } { \g__md_old_uscore_catcode_int }
 
     %% Make backtick active again.
     \char_set_catcode_active:n { \c__md_backquote_int }
@@ -310,6 +326,12 @@
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%  Main Implementation
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%% Active underscore is a regular _ character, except that a line break is allowed after it.
+\cs_set_protected:Npn \__md_active_uscore: {
+    \tl_use:N \c__md_uscore_tl
+    \allowbreak
+}
+
 %% Handle the first ` in a sequence of one or more `.
 \cs_set_protected:Npn \__md_single_backquote:w {
     \peek_charcode_remove:NTF ` { \__md_double_backquote:w } {
