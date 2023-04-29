@@ -213,7 +213,7 @@
 %% Wrap the contents of a code block in a vbox to prevent page breaks.
 \cs_set:Npn \__md_in_vbox:n #1 {
     \tl_use:N \g__md_at_begin_code_block_tl
-    \bool_if:NTF \g__md_allow_break_bool { \vbox{#1} } { #1 }
+    \bool_if:NTF \g__md_allow_break_bool { #1 } { \vbox{#1} }
 }
 
 %% This function sets up the environment so be somewhat similar to how verbatim text is parsed.
