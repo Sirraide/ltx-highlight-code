@@ -201,7 +201,7 @@ void highlight(std::string& text, const highlight_params& params) {
     for (usz i = 0; i < matches.size();) {
         if (matches[i++].k != kind::comment) continue;
         usz remove_end = i;
-        while (i < matches.size() and matches[remove_end].k != kind::newline) remove_end++;
+        while (remove_end < matches.size() and matches[remove_end].k != kind::newline) remove_end++;
         if (i != remove_end) matches.erase(matches.begin() + isz(i), matches.begin() + isz(remove_end));
         i++;
     }
