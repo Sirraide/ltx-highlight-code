@@ -60,7 +60,7 @@ In code blocks, all whitespace—especially line-initial whitespace—as well as
 The language name is case-sensitive. The following languages are currently supported:
 - C++
 - C
-- int (Intercept)
+- Int (Intercept)
 - Go
 - Text (plain text, but monospaced and with `_` and other special characters escaped)
 
