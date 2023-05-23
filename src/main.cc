@@ -601,7 +601,7 @@ void highlight_intercept(std::string& text) {
     highlight(
         text,
         highlight_params{
-            .lang_name = "int",
+            .lang_name = "Int",
             .string_delimiters = "'\"",
             .escape_sequences = "'\"\\nrtfvaeb",
             .line_comment_prefix = ";;",
@@ -698,7 +698,7 @@ int main(int argc, char** argv) {
     if (lang == "C++") highlight_cxx(text);
     else if (lang == "Go") highlight_go(text);
     else if (lang == "C") highlight_c(text);
-    else if (lang == "int") highlight_intercept(text);
+    else if (lang == "Int") highlight_intercept(text);
     else if (lang == "Source") highlight_source(text);
     else if (lang == "Text") {
     } else die("Unknown language '{}'", lang);
