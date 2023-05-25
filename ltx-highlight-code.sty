@@ -332,33 +332,48 @@
     \allowbreak
 }
 
+%% Start group for special parsing.
+\cs_new:Npn \__md_begin_backquote: {
+    \group_begin:
+    \__md_setup_verbatim:
+}
+
+%% End group for special parsing.
+\cs_new:Npn \__md_end_backquote: {
+    \__md_undo_verbatim:
+    \group_end:
+}
+
 %% Handle the first ` in a sequence of one or more `.
 \cs_set_protected:Npn \__md_single_backquote:w {
+    %% Open a new group and start treating special characters literally. We need
+    %% to do this here as otherwise, the call to \peek_charcode_remove:NTF below
+    %% may save and reinsert the next character with its current catcode which
+    %% will then raise an error.
+    \__md_begin_backquote:
+
+    %% Check if the next character is a `.
     \peek_charcode_remove:NTF ` { \__md_double_backquote:w } {
         %% Start a new group and set the font.
-        \group_begin:
         \ttfamily
 
         %% Treat special characters normally and activate user-defined special characters.
-        \__md_setup_verbatim:
         \__md_setup_read_in:
 
         %% Parse the rest of the inline code.
-        \__md_single_backquote_aux:w
+        \__md_single_backquote_aux:w {}
     }
 }
 
 %% Handle a single `.
 \cs_set_protected:Npn \__md_single_backquote_aux:w #1` {
-    %% Insert the group.
     #1
 
     %% Undo everything.
     \__md_undo_read_in:
-    \__md_undo_verbatim:
 
     %% Close the group.
-    \group_end:
+    \__md_end_backquote:
 }
 
 %% Handle the second ` in a sequence of two or more `.
@@ -366,6 +381,9 @@
     \peek_charcode_remove:NTF ` { \__md_triple_backquote:w } {
         %% Two backquotes just inserts a backquote.
         \tl_use:N \c__md_backquote_tl
+
+        %% Disable special parsing.
+        \__md_end_backquote:
     }
 }
 
@@ -377,11 +395,7 @@
     %% Insert code block skip.
 	\skip_vertical:N \g__md_block_skip_dim
 
-	%% Start new group for code block.
-	\group_begin:
-
-	%% Parse the code block.
-	\__md_setup_verbatim:
+    %% Parse the code block.
 	\__md_triple_backquote_aux:w
 }
 
@@ -416,11 +430,8 @@
         \__md_in_vbox:n { \__md_read_in_file:n { \g__md_tmp_file_name_tl } }
     }
 
-    %% Close the code block.
-    \group_end:
-
-    %% Reset parsing.
-    \__md_undo_verbatim:
+    %% Close the code block and reset parsing.
+    \__md_end_backquote:
 
     %% Close the paragraph and insert skip.
     \mode_if_vertical:TF {} { \unskip\par }
