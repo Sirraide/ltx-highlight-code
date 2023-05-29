@@ -154,7 +154,7 @@ struct highlight_params {
 
 /// Highlight code in a string.
 void highlight(std::string& text, const highlight_params& params) {
-    static constexpr std::string_view operators = "+-*/%&|~!=<>?:;.,()[]{}";
+    static constexpr std::string_view operators = "+-*/%&|~!=<>?^:;.,()[]{}";
 
     /// Prepend `\` to escape sequences.
     std::vector<std::string> escape_sequences;
@@ -491,6 +491,89 @@ void highlight_c(std::string& text) {
     );
 }
 
+void highlight_source(std::string& text) {
+    static constexpr std::string_view keywords[]{
+        "__id",
+        "macro",
+        "endmacro",
+        "module",
+        "export",
+        "import",
+        "pragma",
+        "assert",
+        "asm",
+        "if",
+        "then",
+        "elif",
+        "else",
+        "cond",
+        "while",
+        "do",
+        "for",
+        "in",
+        "with",
+        "try",
+        "return",
+        "break",
+        "continue",
+        "fallthrough",
+        "unreachable",
+        "variant",
+        "extern",
+        "static",
+        "is",
+        "as",
+        "not",
+        "and",
+        "or",
+        "xor",
+        "true",
+        "false",
+        "null",
+        "proc",
+        "var",
+        "val",
+        "enum",
+        "struct",
+        "union",
+        "type",
+        "typeof",
+    };
+
+    static constexpr std::string_view types[]{
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "u8",
+        "u16",
+        "u32",
+        "u64",
+        "isz",
+        "usz",
+        "int",
+        "bool",
+        "void",
+        "noreturn",
+        "type",
+        "string",
+    };
+
+    highlight(
+        text,
+        highlight_params{
+            .lang_name = "Source",
+            .string_delimiters = "'\"",
+            .escape_sequences = "'\"\\nrtvfabe0",
+            .line_comment_prefix = "///",
+            .keywords = keywords,
+            .types = types,
+        }
+    );
+}
+
+
+
 void highlight_intercept(std::string& text) {
     static constexpr std::string_view keywords[]{
         "as",
@@ -616,6 +699,7 @@ int main(int argc, char** argv) {
     else if (lang == "Go") highlight_go(text);
     else if (lang == "C") highlight_c(text);
     else if (lang == "int") highlight_intercept(text);
+    else if (lang == "Source") highlight_source(text);
     else if (lang == "Text") {
     } else die("Unknown language '{}'", lang);
 
