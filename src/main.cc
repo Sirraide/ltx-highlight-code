@@ -408,6 +408,7 @@ void highlight_c(std::string& text) {
         "_Pragma",
         "_Static_assert",
         "_Thread_local",
+        "__attribute__",
         "#embed",
         "#error",
         "#include",
