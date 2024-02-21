@@ -12,6 +12,8 @@ using options = clopts< // clang-format off
     help<>
 >; // clang-format on
 
+bool debug = false;
+
 /// Characters used by the package.
 #define ESC "\x10"
 #define BEG "\x02"
@@ -175,7 +177,7 @@ void highlight(std::string& text, const highlight_params& params) {
     /// Match keywords.
     auto matches = tr.match(text);
     auto print_matches = [&] (auto it) {
-        if (options::get<"--debug">()) {
+        if (debug) {
             for (; it != matches.rend(); ++it) {
                 auto& m = *it;
                 fmt::print(stderr, "{}: \"{}\" ({} chars)\n", std::to_underlying(m.k), text.substr(m.pos, m.len), m.len);
@@ -573,8 +575,6 @@ void highlight_source(std::string& text) {
     );
 }
 
-
-
 void highlight_intercept(std::string& text) {
     static constexpr std::string_view keywords[]{
         "as",
@@ -690,9 +690,10 @@ void trim(std::string& s) {
 }
 
 int main(int argc, char** argv) {
-    options::parse(argc, argv);
-    std::string_view lang = *options::get<"language">();
-    std::string text = options::get<"input">()->contents;
+    auto opts = options::parse(argc, argv);
+    std::string_view lang = *opts.get<"language">();
+    std::string text = opts.get<"input">()->contents;
+    debug = opts.get<"--debug">();
 
     trim(text);
 
