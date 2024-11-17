@@ -684,6 +684,40 @@ void highlight_go(std::string& text) {
     );
 }
 
+void highlight_rust(std::string& text) {
+    static constexpr std::string_view keywords[] {
+        "use",
+        "struct",
+        "impl",
+        "for",
+        "type",
+        "fn",
+        "self",
+        "Self",
+    };
+
+    static constexpr std::string_view types[] {
+        "i8",
+        "i16",
+        "i32",
+        "i64",
+        "Point"
+    };
+
+    highlight(
+        text,
+        highlight_params{
+            .lang_name = "Rust",
+            .string_delimiters  = "\"'",
+            .escape_sequences = "'\"\\nrt",
+            .line_comment_prefix = "//",
+            .keywords = keywords,
+            .types = types,
+        }
+    );
+
+}
+
 void trim(std::string& s) {
     while (not s.empty() && isspace(s.back())) s.pop_back();
     while (not s.empty() && isspace(s.front())) s.erase(s.begin());
@@ -702,6 +736,7 @@ int main(int argc, char** argv) {
     else if (lang == "C") highlight_c(text);
     else if (lang == "Int") highlight_intercept(text);
     else if (lang == "Source") highlight_source(text);
+    else if (lang == "Rust") highlight_rust(text);
     else if (lang == "Text") {
     } else die("Unknown language '{}'", lang);
 
